@@ -62,10 +62,18 @@ function LoginScreen() {
       const text = await response.text();
       let result;
 
+      if (!text.trim()) {
+        throw new Error(
+          `Server returned an empty response (HTTP ${response.status}) from ${API_URL}`
+        );
+      }
+
       try {
         result = JSON.parse(text);
       } catch (_error) {
-        throw new Error("Server did not return valid JSON. Got: " + text);
+        throw new Error(
+          `Server did not return valid JSON (HTTP ${response.status}). Got: ${text}`
+        );
       }
 
       setLoading(false);
