@@ -3,33 +3,19 @@ import { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 import {
-  MD3LightTheme,
   Provider as PaperProvider,
   Text,
   TextInput,
   useTheme,
 } from "react-native-paper";
+import AgriButton from "../../components/AgriButton";
 import AppHeader from "../../components/header";
-
-const agricultureTheme = {
-  ...MD3LightTheme,
-  colors: {
-    ...MD3LightTheme.colors,
-    primary: "#4CAF50",
-    secondary: "#81C784",
-    background: "#E8F5E9",
-    surface: "#ffffff",
-    onPrimary: "#ffffff",
-    outline: "#A5D6A7",
-  },
-};
+import { agriPaperTheme, agriPalette } from "../../constants/agriTheme";
 
 const API_URL =
   "https://e-livestock.tulongkabataanbicol.com/eLiveStockAPI/API/register.php";
@@ -38,7 +24,7 @@ const API_SEND_OTP =
 
 export default function Register() {
   return (
-    <PaperProvider theme={agricultureTheme}>
+    <PaperProvider theme={agriPaperTheme}>
       <RegisterScreen />
     </PaperProvider>
   );
@@ -47,7 +33,6 @@ export default function Register() {
 function RegisterScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-
   const [firstname, setFirstname] = useState("");
   const [lastname, setLastname] = useState("");
   const [address, setAddress] = useState("");
@@ -57,8 +42,8 @@ function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const isValidEmail = (email) => email.includes("@");
-  const isValidPhone = (phone) => phone.length === 11;
+  const isValidEmail = (value) => value.includes("@");
+  const isValidPhone = (value) => value.length === 11;
 
   const handleRegister = async () => {
     if (
@@ -113,7 +98,6 @@ function RegisterScreen() {
         return;
       }
 
-      // Send OTP after successful registration
       const otpRes = await fetch(API_SEND_OTP, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,7 +112,7 @@ function RegisterScreen() {
         return;
       }
 
-      Alert.alert("Success", "OTP sent to your email!");
+      Alert.alert("Success", "OTP sent to your email.");
       router.replace({
         pathname: "/verifyOtp",
         params: { email, purpose: "register" },
@@ -144,12 +128,13 @@ function RegisterScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior="height" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <Text style={styles.title}>Create Your Account</Text>
+          <Text style={styles.title}>Create your account</Text>
+          <Text style={styles.subtitle}>
+            Register for livestock permit access with the same updated
+            field-ready visual style.
+          </Text>
           <View style={styles.formContainer}>
             <TextInput
               label="First Name"
@@ -186,7 +171,9 @@ function RegisterScreen() {
               value={phone}
               onChangeText={(text) => {
                 const numeric = text.replace(/[^0-9]/g, "");
-                if (numeric.length <= 11) setPhone(numeric);
+                if (numeric.length <= 11) {
+                  setPhone(numeric);
+                }
               }}
               keyboardType="phone-pad"
               style={styles.input}
@@ -206,15 +193,15 @@ function RegisterScreen() {
               onChangeText={setPassword}
               style={styles.input}
             />
-            <TouchableOpacity
-              style={styles.registerBtn}
+            <AgriButton
+              title="Create account"
+              subtitle="Request owner access and verification"
+              icon="sprout"
+              loading={loading}
               onPress={handleRegister}
               disabled={loading}
-            >
-              <Text style={styles.registerText}>
-                {loading ? "Registering..." : "Register"}
-              </Text>
-            </TouchableOpacity>
+              style={styles.registerButton}
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -223,20 +210,44 @@ function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: { paddingTop: 140, paddingBottom: 60, alignItems: "center" },
-  title: { fontSize: 22, fontWeight: "bold", marginBottom: 20 },
+  scrollContainer: {
+    paddingTop: 140,
+    paddingBottom: 60,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: agriPalette.ink,
+    marginBottom: 10,
+  },
+  subtitle: {
+    width: "90%",
+    maxWidth: 620,
+    textAlign: "center",
+    color: agriPalette.inkSoft,
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 18,
+  },
   formContainer: {
     width: "90%",
-    backgroundColor: "white",
-    borderRadius: 16,
+    maxWidth: 620,
+    backgroundColor: agriPalette.surface,
+    borderRadius: 26,
     padding: 24,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 3,
   },
-  input: { marginBottom: 12 },
-  registerBtn: {
-    backgroundColor: "#4CAF50",
-    paddingVertical: 14,
-    borderRadius: 10,
+  input: {
+    marginBottom: 12,
+  },
+  registerButton: {
     marginTop: 24,
   },
-  registerText: { color: "white", fontWeight: "bold", textAlign: "center" },
 });

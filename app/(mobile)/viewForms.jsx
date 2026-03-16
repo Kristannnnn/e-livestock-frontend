@@ -1,114 +1,130 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import {
   Alert,
-  ScrollView,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { Button, Card, Menu } from "react-native-paper";
+import AgriButton from "../../components/AgriButton";
+import DashboardShell from "../../components/DashboardShell";
 import FormDetailsModal from "../../components/FormDetailsModal";
+import { agriPalette } from "../../constants/agriTheme";
 
 const API_URL =
   "https://e-livestock.tulongkabataanbicol.com/eLiveStockAPI/API/get_forms.php";
 
+const FILTER_OPTIONS = [
+  { value: "all", label: "All Forms", icon: "file-cabinet" },
+  { value: "today", label: "Today", icon: "calendar-today" },
+  { value: "week", label: "This Week", icon: "calendar-week" },
+  { value: "month", label: "This Month", icon: "calendar-month" },
+];
+
 export default function ViewForms() {
-  const [allGroupedForms, setAllGroupedForms] = useState({}); // original fetched grouped forms
-  const [allFilteredForms, setAllFilteredForms] = useState([]); // original fetched filtered forms
+  const { width } = useWindowDimensions();
+  const isWide = width >= 900;
+  const [allGroupedForms, setAllGroupedForms] = useState({});
+  const [allFilteredForms, setAllFilteredForms] = useState([]);
   const [groupedForms, setGroupedForms] = useState({});
   const [filteredForms, setFilteredForms] = useState([]);
-
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedForm, setSelectedForm] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [menuVisible, setMenuVisible] = useState(false);
   const [filter, setFilter] = useState("all");
 
-  // Fetch forms from API whenever filter changes
   useEffect(() => {
-    fetchForms(filter);
+    const loadForms = async () => {
+      try {
+        const accountId = await AsyncStorage.getItem("account_id");
+        if (!accountId) {
+          Alert.alert("Error", "User not logged in.");
+          return;
+        }
+
+        const response = await fetch(
+          `${API_URL}?filter=${filter}&account_id=${accountId}`
+        );
+        const data = await response.json();
+
+        if (data.status === "success") {
+          if (filter === "all") {
+            setAllGroupedForms(data.forms || {});
+            setGroupedForms(data.forms || {});
+            setAllFilteredForms([]);
+            setFilteredForms([]);
+          } else {
+            setAllFilteredForms(data.forms || []);
+            setFilteredForms(data.forms || []);
+            setAllGroupedForms({});
+            setGroupedForms({});
+          }
+        } else {
+          Alert.alert("Error", data.message || "Failed to load forms.");
+        }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to fetch forms.");
+      }
+    };
+
+    loadForms();
   }, [filter]);
 
-  // Apply search whenever searchQuery changes
   useEffect(() => {
-    applySearch(searchQuery);
-  }, [searchQuery]);
+    const lowerQuery = searchQuery.toLowerCase().trim();
 
-  const fetchForms = async (filterParam) => {
-    try {
-      const account_id = await AsyncStorage.getItem("account_id");
-      if (!account_id) {
-        Alert.alert("Error", "User not logged in.");
+    if (filter === "all") {
+      if (!lowerQuery) {
+        setGroupedForms(allGroupedForms);
         return;
       }
 
-      const response = await fetch(
-        `${API_URL}?filter=${filterParam}&account_id=${account_id}`
-      );
-
-      const data = await response.json();
-
-      if (data.status === "success") {
-        if (filterParam === "all") {
-          setAllGroupedForms(data.forms || {});
-          setGroupedForms(data.forms || {});
-          setAllFilteredForms([]);
-          setFilteredForms([]);
-        } else {
-          setAllFilteredForms(data.forms || []);
-          setFilteredForms(data.forms || []);
-          setAllGroupedForms({});
-          setGroupedForms({});
-        }
-      } else {
-        Alert.alert("Error", data.message || "Failed to load forms.");
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "Failed to fetch forms.");
-    }
-  };
-
-  const applySearch = (query) => {
-    const lowerQuery = query.toLowerCase().trim();
-    if (filter === "all") {
-      if (lowerQuery === "") return setGroupedForms(allGroupedForms);
-
-      const newGrouped = {};
+      const nextGroups = {};
       Object.keys(allGroupedForms).forEach((date) => {
         const matches = allGroupedForms[date].filter(
-          (f) =>
-            f.owner_name.toLowerCase().includes(lowerQuery) ||
-            f.animal_unique_identifier.toLowerCase().includes(lowerQuery) ||
-            f.form_id.toString().includes(lowerQuery)
+          (item) =>
+            item.owner_name.toLowerCase().includes(lowerQuery) ||
+            item.animal_unique_identifier.toLowerCase().includes(lowerQuery) ||
+            item.form_id.toString().includes(lowerQuery)
         );
-        if (matches.length > 0) newGrouped[date] = matches;
+
+        if (matches.length > 0) {
+          nextGroups[date] = matches;
+        }
       });
-      setGroupedForms(newGrouped);
-    } else {
-      if (lowerQuery === "") return setFilteredForms(allFilteredForms);
 
-      const newFiltered = allFilteredForms.filter(
-        (f) =>
-          f.owner_name.toLowerCase().includes(lowerQuery) ||
-          f.animal_unique_identifier.toLowerCase().includes(lowerQuery) ||
-          f.form_id.toString().includes(lowerQuery)
-      );
-      setFilteredForms(newFiltered);
+      setGroupedForms(nextGroups);
+      return;
     }
-  };
 
-  const viewFormDetails = async (form_id) => {
+    if (!lowerQuery) {
+      setFilteredForms(allFilteredForms);
+      return;
+    }
+
+    setFilteredForms(
+      allFilteredForms.filter(
+        (item) =>
+          item.owner_name.toLowerCase().includes(lowerQuery) ||
+          item.animal_unique_identifier.toLowerCase().includes(lowerQuery) ||
+          item.form_id.toString().includes(lowerQuery)
+      )
+    );
+  }, [searchQuery, filter, allGroupedForms, allFilteredForms]);
+
+  const viewFormDetails = async (formId) => {
     try {
       const response = await fetch(
         "https://e-livestock.tulongkabataanbicol.com/eLiveStockAPI/API/get_form_details.php",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ form_id }),
+          body: JSON.stringify({ form_id: formId }),
         }
       );
 
@@ -126,188 +142,461 @@ export default function ViewForms() {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* ✅ SEARCH BAR */}
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by Owner, Eartag, or Form ID"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
+  const groupedEntries = Object.entries(groupedForms);
+  const totalForms =
+    filter === "all"
+      ? groupedEntries.reduce((sum, [, items]) => sum + items.length, 0)
+      : filteredForms.length;
+  const selectedFilterLabel =
+    FILTER_OPTIONS.find((option) => option.value === filter)?.label || "All";
 
-      {/* ✅ FILTER MENU */}
-      <View style={styles.filterContainer}>
-        <Menu
-          visible={menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <Button
-              mode="outlined"
-              onPress={() => setMenuVisible(true)}
-              style={styles.filterButton}
-              labelStyle={{ color: "#2E7D32" }}
-            >
-              {filter === "today"
-                ? "Today"
-                : filter === "week"
-                ? "This Week"
-                : filter === "month"
-                ? "This Month"
-                : "All Forms"}
-              <MaterialIcons
-                name="keyboard-arrow-down"
-                size={20}
-                color="#2E7D32"
-              />
-            </Button>
-          }
-        >
-          <Menu.Item
-            onPress={() => {
-              setMenuVisible(false);
-              setFilter("all");
-            }}
-            title="All Forms"
+  return (
+    <DashboardShell
+      eyebrow="Submitted records"
+      title="View submitted forms"
+      subtitle="Search livestock records, narrow the reporting window, and open full form details in a cleaner responsive workspace."
+      summary={`${totalForms} form${totalForms === 1 ? "" : "s"} visible for ${selectedFilterLabel.toLowerCase()}.`}
+    >
+      <View style={styles.controlCard}>
+        <Text style={styles.cardEyebrow}>Search and filter</Text>
+        <Text style={styles.cardTitle}>Find a livestock form quickly</Text>
+
+        <View style={[styles.searchBox, isWide && styles.searchBoxWide]}>
+          <MaterialCommunityIcons
+            name="magnify"
+            size={20}
+            color={agriPalette.field}
           />
-          <Menu.Item
-            onPress={() => {
-              setMenuVisible(false);
-              setFilter("today");
-            }}
-            title="Today"
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by owner, eartag, or form ID"
+            placeholderTextColor="#70806F"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
-          <Menu.Item
-            onPress={() => {
-              setMenuVisible(false);
-              setFilter("week");
-            }}
-            title="This Week"
+        </View>
+
+        <View style={styles.filterRow}>
+          {FILTER_OPTIONS.map((option) => {
+            const active = option.value === filter;
+
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setFilter(option.value)}
+                style={[
+                  styles.filterChip,
+                  active && styles.filterChipActive,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={option.icon}
+                  size={18}
+                  color={active ? agriPalette.white : agriPalette.fieldDeep}
+                />
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    active && styles.filterChipTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={[styles.metricsRow, isWide && styles.metricsRowWide]}>
+          <MetricPill
+            icon="clipboard-text-outline"
+            label="Visible forms"
+            value={String(totalForms)}
           />
-          <Menu.Item
-            onPress={() => {
-              setMenuVisible(false);
-              setFilter("month");
-            }}
-            title="This Month"
+          <MetricPill
+            icon="tune-variant"
+            label="Filter"
+            value={selectedFilterLabel}
           />
-        </Menu>
+          <MetricPill
+            icon="magnify-scan"
+            label="Search"
+            value={searchQuery.trim() ? "Active" : "All records"}
+          />
+        </View>
       </View>
 
-      {/* ✅ FORMS LIST */}
-      <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
-        {filter === "all"
-          ? Object.keys(groupedForms).map((date) => (
-              <View key={date} style={{ marginBottom: 15 }}>
-                <Text style={styles.dateHeader}>{date}</Text>
-
-                {groupedForms[date].map((item) => (
-                  <Card key={item.form_id} style={styles.formCard}>
-                    <View style={styles.row}>
-                      <View style={{ flex: 3 }}>
-                        <Text style={styles.label}>EARTAG:</Text>
-                        <Text style={styles.value}>
-                          {item.animal_unique_identifier}
-                        </Text>
-                      </View>
-
-                      <View style={{ flex: 3 }}>
-                        <Text style={styles.label}>OWNER:</Text>
-                        <Text style={styles.value}>{item.owner_name}</Text>
-                      </View>
-
-                      <View style={{ flex: 2 }}>
-                        <Button
-                          mode="contained"
-                          onPress={() => viewFormDetails(item.form_id)}
-                          style={{ backgroundColor: "#2E7D32" }}
-                        >
-                          View
-                        </Button>
-                      </View>
-                    </View>
-                  </Card>
-                ))}
-              </View>
-            ))
-          : filteredForms.map((item) => (
-              <Card key={item.form_id} style={styles.formCard}>
-                <View style={styles.row}>
-                  <View style={{ flex: 3 }}>
-                    <Text style={styles.label}>EARTAG:</Text>
-                    <Text style={styles.value}>
-                      {item.animal_unique_identifier}
+      {totalForms === 0 ? (
+        <View style={styles.emptyCard}>
+          <MaterialCommunityIcons
+            name="sprout-outline"
+            size={36}
+            color={agriPalette.field}
+          />
+          <Text style={styles.emptyTitle}>No forms found</Text>
+          <Text style={styles.emptyText}>
+            Try another filter or search term to reveal more livestock records.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.listContent}>
+          {filter === "all" ? (
+            groupedEntries.map(([date, items]) => (
+              <View key={date} style={styles.dateSection}>
+                <View style={styles.dateHeader}>
+                  <View>
+                    <Text style={styles.dateEyebrow}>Record date</Text>
+                    <Text style={styles.dateTitle}>{date}</Text>
+                  </View>
+                  <View style={styles.dateCountPill}>
+                    <Text style={styles.dateCountText}>
+                      {items.length} form{items.length === 1 ? "" : "s"}
                     </Text>
                   </View>
-
-                  <View style={{ flex: 3 }}>
-                    <Text style={styles.label}>OWNER:</Text>
-                    <Text style={styles.value}>{item.owner_name}</Text>
-                  </View>
-
-                  <View style={{ flex: 2 }}>
-                    <Button
-                      mode="contained"
-                      onPress={() => viewFormDetails(item.form_id)}
-                      style={{ backgroundColor: "#2E7D32" }}
-                    >
-                      View
-                    </Button>
-                  </View>
                 </View>
-              </Card>
-            ))}
-      </ScrollView>
+
+                <View style={[styles.cardsGrid, isWide && styles.cardsGridWide]}>
+                  {items.map((item) => (
+                    <FormCard
+                      key={item.form_id}
+                      item={item}
+                      isWide={isWide}
+                      onView={viewFormDetails}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={[styles.cardsGrid, isWide && styles.cardsGridWide]}>
+              {filteredForms.map((item) => (
+                <FormCard
+                  key={item.form_id}
+                  item={item}
+                  isWide={isWide}
+                  onView={viewFormDetails}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       <FormDetailsModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         form={selectedForm}
       />
+    </DashboardShell>
+  );
+}
+
+function FormCard({ item, onView, isWide }) {
+  return (
+    <View style={[styles.formCard, isWide && styles.formCardWide]}>
+      <View style={styles.formCardTop}>
+        <View style={styles.formBadge}>
+          <Text style={styles.formBadgeText}>Form #{item.form_id}</Text>
+        </View>
+        <MaterialCommunityIcons
+          name="barn"
+          size={22}
+          color={agriPalette.fieldDeep}
+        />
+      </View>
+
+      <Text style={styles.formCardTitle}>{item.owner_name}</Text>
+      <Text style={styles.formCardSubtitle}>
+        Eartag: {item.animal_unique_identifier}
+      </Text>
+
+      <View style={styles.detailPillRow}>
+        <DetailPill
+          icon="account-outline"
+          text={item.owner_name}
+        />
+        <DetailPill
+          icon="tag-outline"
+          text={item.animal_unique_identifier}
+        />
+      </View>
+
+      <View style={styles.formActionWrap}>
+        <AgriButton
+          title="View details"
+          subtitle="Open QR, expiry, and record data"
+          icon="file-eye-outline"
+          compact
+          variant="primary"
+          onPress={() => onView(item.form_id)}
+        />
+      </View>
+    </View>
+  );
+}
+
+function MetricPill({ icon, label, value }) {
+  return (
+    <View style={styles.metricPill}>
+      <MaterialCommunityIcons
+        name={icon}
+        size={18}
+        color={agriPalette.fieldDeep}
+      />
+      <View style={styles.metricTextWrap}>
+        <Text style={styles.metricLabel}>{label}</Text>
+        <Text style={styles.metricValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function DetailPill({ icon, text }) {
+  return (
+    <View style={styles.detailPill}>
+      <MaterialCommunityIcons
+        name={icon}
+        size={16}
+        color={agriPalette.fieldDeep}
+      />
+      <Text style={styles.detailPillText} numberOfLines={1}>
+        {text}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 25,
-    paddingHorizontal: 15,
-    backgroundColor: "#E8F5E9",
-  },
-  searchInput: {
-    
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 10,
-    borderColor: "#2E7D32",
+  controlCard: {
+    backgroundColor: agriPalette.surface,
+    borderRadius: 30,
     borderWidth: 1,
-    color: "#333",
-  },
-  filterContainer: { alignItems: "center", marginBottom: 15 },
-  filterButton: {
-    borderColor: "#2E7D32",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: 160,
-  },
-  dateHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginVertical: 5,
-    color: "#2E7D32",
-  },
-  formCard: {
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    borderColor: agriPalette.border,
+    padding: 22,
+    marginBottom: 18,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
     elevation: 3,
   },
-  row: { flexDirection: "row", alignItems: "center" },
-  label: { fontWeight: "bold", color: "#2E7D32" },
-  value: { fontSize: 15, color: "#333", marginBottom: 5 },
+  cardEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  cardTitle: {
+    marginTop: 8,
+    color: agriPalette.ink,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  searchBox: {
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FCFAF4",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    paddingHorizontal: 14,
+    minHeight: 58,
+  },
+  searchBoxWide: {
+    maxWidth: 620,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingLeft: 10,
+    color: agriPalette.ink,
+    fontSize: 15,
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 16,
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: agriPalette.mist,
+  },
+  filterChipActive: {
+    backgroundColor: agriPalette.field,
+  },
+  filterChipText: {
+    marginLeft: 8,
+    color: agriPalette.fieldDeep,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  filterChipTextActive: {
+    color: agriPalette.white,
+  },
+  metricsRow: {
+    gap: 10,
+    marginTop: 16,
+  },
+  metricsRowWide: {
+    flexDirection: "row",
+  },
+  metricPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F0E3",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  metricTextWrap: {
+    marginLeft: 10,
+  },
+  metricLabel: {
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  metricValue: {
+    color: agriPalette.fieldDeep,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  emptyCard: {
+    backgroundColor: agriPalette.surface,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    padding: 28,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    marginTop: 14,
+    color: agriPalette.ink,
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  emptyText: {
+    marginTop: 10,
+    textAlign: "center",
+    color: agriPalette.inkSoft,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  dateSection: {
+    marginBottom: 18,
+  },
+  dateHeader: {
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dateEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  dateTitle: {
+    marginTop: 6,
+    color: agriPalette.ink,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  dateCountPill: {
+    borderRadius: 999,
+    backgroundColor: "#F2E4BD",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  dateCountText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  cardsGrid: {
+    gap: 12,
+  },
+  cardsGridWide: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  formCard: {
+    backgroundColor: agriPalette.surface,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    padding: 18,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  formCardWide: {
+    width: "48.8%",
+  },
+  formCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  formBadge: {
+    borderRadius: 999,
+    backgroundColor: agriPalette.mist,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  formBadgeText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  formCardTitle: {
+    marginTop: 16,
+    color: agriPalette.ink,
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  formCardSubtitle: {
+    marginTop: 6,
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  detailPillRow: {
+    marginTop: 16,
+    gap: 10,
+  },
+  detailPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 16,
+    backgroundColor: "#F9F4E8",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  detailPillText: {
+    marginLeft: 8,
+    color: agriPalette.fieldDeep,
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+  formActionWrap: {
+    marginTop: 16,
+  },
 });

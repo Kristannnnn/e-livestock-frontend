@@ -1,20 +1,14 @@
-import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
+import AgriButton from "../../components/AgriButton";
+import DashboardShell from "../../components/DashboardShell";
+import StatCard from "../../components/StatCard";
+import { agriPalette } from "../../constants/agriTheme";
 
 export default function DashboardScreen() {
   const router = useRouter();
-
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState({
     slaughtered: 0,
@@ -23,7 +17,7 @@ export default function DashboardScreen() {
     ongoing: 0,
   });
 
-  const fetchAnalytics = async () => {
+  async function fetchAnalytics() {
     setLoading(true);
 
     try {
@@ -35,10 +29,10 @@ export default function DashboardScreen() {
 
       if (result.status === "success") {
         setAnalytics({
-          slaughtered: parseInt(result.data.total_slaughtered) || 0,
-          scheduled: parseInt(result.data.total_scheduled) || 0,
-          pending: parseInt(result.data.total_pending) || 0,
-          ongoing: parseInt(result.data.total_ongoing) || 0,
+          slaughtered: parseInt(result.data.total_slaughtered, 10) || 0,
+          scheduled: parseInt(result.data.total_scheduled, 10) || 0,
+          pending: parseInt(result.data.total_pending, 10) || 0,
+          ongoing: parseInt(result.data.total_ongoing, 10) || 0,
         });
       } else {
         console.log("API error:", result.message);
@@ -50,7 +44,7 @@ export default function DashboardScreen() {
     }
 
     setLoading(false);
-  };
+  }
 
   useEffect(() => {
     fetchAnalytics();
@@ -70,135 +64,128 @@ export default function DashboardScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
-        {/* Move analytics lower */}
-        <View style={{ marginTop: 40 }}>
-          <Text style={styles.sectionTitle}></Text>
+    <DashboardShell
+      eyebrow="Antemortem inspection"
+      title="Animal movement overview"
+      subtitle="Follow slaughter preparation, scheduled inspections, and pending checks through a cleaner dashboard tuned to agriculture workflows."
+      summary={
+        loading
+          ? "Refreshing antemortem analytics..."
+          : `${analytics.scheduled} scheduled and ${analytics.ongoing} ongoing inspections right now.`
+      }
+    >
+      <View style={styles.statsGrid}>
+        <StatCard
+          label="Slaughtered"
+          value={analytics.slaughtered}
+          caption="Completed animal inspections and processing records."
+          icon="cow"
+          accent="meadow"
+          loading={loading}
+        />
+        <StatCard
+          label="Scheduled"
+          value={analytics.scheduled}
+          caption="Upcoming livestock checks already queued."
+          icon="calendar-check-outline"
+          accent="wheat"
+          loading={loading}
+        />
+        <StatCard
+          label="Pending"
+          value={analytics.pending}
+          caption="Requests still waiting for an antemortem review."
+          icon="clock-outline"
+          accent="clay"
+          loading={loading}
+        />
+        <StatCard
+          label="Ongoing"
+          value={analytics.ongoing}
+          caption="Inspections currently in progress in the field."
+          icon="progress-clock"
+          accent="sky"
+          loading={loading}
+        />
+      </View>
 
-          {/* ANALYTICS GRID */}
-          {loading ? (
-            <ActivityIndicator
-              size="large"
-              color="#2196F3"
-              style={{ marginVertical: 50 }}
-            />
-          ) : (
-            <View style={styles.analyticsGrid}>
-              <TouchableOpacity style={styles.analyticsButton}>
-                <MaterialIcons name="check-circle" size={40} color="#1B5E20" />
-                <Text style={styles.analyticsValue}>
-                  {analytics.slaughtered}
-                </Text>
-                <Text style={styles.analyticsLabel}>Slaughtered</Text>
-              </TouchableOpacity>
+      <View style={styles.surfaceCard}>
+        <Text style={styles.cardEyebrow}>Action center</Text>
+        <Text style={styles.cardTitle}>Open the next inspection task</Text>
+        <Text style={styles.cardCopy}>
+          Use the updated action buttons to review schedules, launch QR
+          scanning, or end the session with a consistent modern look.
+        </Text>
 
-              <TouchableOpacity style={styles.analyticsButton}>
-                <MaterialIcons name="schedule" size={40} color="#1565C0" />
-                <Text style={styles.analyticsValue}>{analytics.scheduled}</Text>
-                <Text style={styles.analyticsLabel}>Scheduled</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.analyticsButton}>
-                <MaterialIcons
-                  name="pending-actions"
-                  size={40}
-                  color="#F57F17"
-                />
-                <Text style={styles.analyticsValue}>{analytics.pending}</Text>
-                <Text style={styles.analyticsLabel}>Pending</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.analyticsButton}>
-                <MaterialIcons name="autorenew" size={40} color="#00838F" />
-                <Text style={styles.analyticsValue}>{analytics.ongoing}</Text>
-                <Text style={styles.analyticsLabel}>Ongoing</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* NAVIGATION BUTTONS */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: "#2196F3" }]}
+        <View style={styles.actionStack}>
+          <AgriButton
+            title="Review schedules"
+            subtitle="Manage the next round of livestock appointments"
+            icon="calendar-month-outline"
+            variant="primary"
             onPress={() => router.push("/antemortemSchedules")}
-          >
-            <Text style={styles.buttonText}>Schedules</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: "#E53935" }]}
+          />
+          <AgriButton
+            title="Scan QR records"
+            subtitle="Open QR verification for on-site inspection"
+            icon="qrcode-scan"
+            variant="secondary"
+            onPress={() => router.push("/antemortemScanQRcode")}
+          />
+          <AgriButton
+            title="Logout"
+            subtitle="Close this antemortem session securely"
+            icon="logout"
+            variant="danger"
             onPress={handleLogout}
-          >
-            <Text style={styles.buttonText}>Logout</Text>
-          </TouchableOpacity>
+          />
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    </DashboardShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F0F9F0", // light greenish background for agri theme
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 15,
-    color: "#2E7D32", // deep green header
-  },
-  analyticsGrid: {
+  statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginBottom: 30,
+    gap: 14,
+    marginBottom: 18,
   },
-  analyticsButton: {
-    width: "48%",
-    paddingVertical: 25,
-    backgroundColor: "#FFFDE7", // soft yellow for agri feeling
-    borderRadius: 15,
-    alignItems: "center",
-    elevation: 3,
+  surfaceCard: {
+    borderRadius: 30,
+    backgroundColor: agriPalette.surface,
     borderWidth: 1,
-    borderColor: "#DCE775",
-    marginBottom: 20,
-  },
-  analyticsValue: {
-    fontSize: 34,
-    fontWeight: "bold",
-    marginTop: 10,
-    color: "#33691E",
-  },
-  analyticsLabel: {
-    fontSize: 16,
-    color: "#558B2F",
-    marginTop: 5,
-  },
-  buttonContainer: {
-    marginTop: 20,
-    marginBottom: 40,
-  },
-  button: {
-    width: "100%",
-    paddingVertical: 20,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 20,
+    borderColor: agriPalette.border,
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
     elevation: 3,
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "bold",
+  cardEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
     textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  cardTitle: {
+    marginTop: 8,
+    color: agriPalette.ink,
+    fontSize: 25,
+    fontWeight: "900",
+  },
+  cardCopy: {
+    marginTop: 10,
+    marginBottom: 18,
+    color: agriPalette.inkSoft,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  actionStack: {
+    gap: 12,
   },
 });

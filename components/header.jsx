@@ -1,41 +1,84 @@
-import { Image, Platform, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
+import { agriPalette } from "../constants/agriTheme";
 
 export default function AppHeader() {
   return (
-    <View
-      style={{
-        position: "absolute",
-        top: Platform.OS === "web" ? 0 : 40, // safe top padding on mobile
-        left: 0,
-        right: 0,
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        backgroundColor: "#39913cff", // Agriculture green
-        borderBottomWidth: 1,
-        borderColor: "#A5D6A7",
-        elevation: 4,
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        zIndex: 100,
-      }}
-    >
-      <Image
-        source={require("../assets/favicon.png")}
-        style={{ width: 40, height: 40, marginRight: 12 }}
-        resizeMode="contain"
-      />
+    <View style={styles.wrapper}>
+      <LinearGradient
+        colors={[agriPalette.fieldDeep, agriPalette.field]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.container}
+      >
+        <Image
+          source={require("../assets/favicon.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
-      <View>
-        <Text style={{ fontSize: 20, fontWeight: "bold", color: "#fff" }}>
-          Region V
-        </Text>
-        <Text style={{ fontSize: 15, color: "#f1f8e9" }}>
-          Livestock Inspection
-        </Text>
-      </View>
+        <View style={styles.titleWrap}>
+          <Text style={styles.title}>Region V</Text>
+          <Text style={styles.subtitle}>Livestock Inspection Services</Text>
+        </View>
+
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>Field Ready</Text>
+        </View>
+      </LinearGradient>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    position: "absolute",
+    top: Platform.OS === "web" ? 0 : 38,
+    left: 14,
+    right: 14,
+    zIndex: 100,
+  },
+  container: {
+    borderRadius: 26,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#10251a",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  logo: {
+    width: 42,
+    height: 42,
+    marginRight: 12,
+  },
+  titleWrap: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 19,
+    fontWeight: "900",
+    color: agriPalette.white,
+  },
+  subtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.82)",
+  },
+  badge: {
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  badgeText: {
+    color: agriPalette.white,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+});

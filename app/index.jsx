@@ -1,45 +1,34 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import {
-  ActivityIndicator,
-  Button,
-  Card,
-  MD3LightTheme,
   Provider as PaperProvider,
   Text,
   TextInput,
   useTheme,
 } from "react-native-paper";
-
-const agricultureTheme = {
-  ...MD3LightTheme,
-  colors: {
-    ...MD3LightTheme.colors,
-    primary: "#4CAF50",
-    secondary: "#81C784",
-    background: "#F1F8E9",
-    surface: "#ffffff",
-    onPrimary: "#ffffff",
-    outline: "#A5D6A7",
-  },
-};
+import AgriButton from "../components/AgriButton";
+import { agriPalette, agriPaperTheme } from "../constants/agriTheme";
 
 const API_URL =
   "https://e-livestock.tulongkabataanbicol.com/eLiveStockAPI/API/logIn.php";
 
 export default function Login() {
   return (
-    <PaperProvider theme={agricultureTheme}>
+    <PaperProvider theme={agriPaperTheme}>
       <LoginScreen />
     </PaperProvider>
   );
@@ -48,6 +37,9 @@ export default function Login() {
 function LoginScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 920;
+  const isCompact = width < 560;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -68,12 +60,11 @@ function LoginScreen() {
       });
 
       const text = await response.text();
-      console.log("Raw response:", text);
-
       let result;
+
       try {
         result = JSON.parse(text);
-      } catch (e) {
+      } catch (_error) {
         throw new Error("Server did not return valid JSON. Got: " + text);
       }
 
@@ -89,7 +80,7 @@ function LoginScreen() {
           ["user", JSON.stringify(result.user)],
         ]);
 
-        Alert.alert("Success", "Login successful!");
+        Alert.alert("Success", "Login successful.");
 
         switch (result.user.account_type) {
           case "user":
@@ -118,160 +109,366 @@ function LoginScreen() {
   };
 
   return (
-    <LinearGradient colors={["#C8E6C9", "#F1F8E9"]} style={styles.root}>
-      {/* Curved background */}
-      <View style={styles.curvedContainer} />
+    <LinearGradient
+      colors={[agriPalette.fieldDeep, agriPalette.field, agriPalette.cream]}
+      locations={[0, 0.44, 1]}
+      style={styles.root}
+    >
+      <View style={styles.glowTopLeft} />
+      <View style={styles.glowBottomRight} />
 
-      {/* Logo */}
-      <Image source={require("../assets/logo.png")} style={styles.logo} />
-      <Text style={styles.logoText}>
-        e-Livestock Municipal Agriculture Office-Sipocot
-      </Text>
-
-      {/* Login Card */}
-      <Card style={[styles.card, { backgroundColor: colors.surface }]}>
-        <Card.Content>
-          <Text
-            variant="titleLarge"
-            style={{
-              color: colors.primary,
-              fontWeight: "bold",
-              marginBottom: 10,
-            }}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View
+            style={[
+              styles.page,
+              {
+                flexDirection: isWide ? "row" : "column",
+                alignItems: isWide ? "center" : "stretch",
+                paddingHorizontal: isCompact ? 16 : 20,
+                paddingVertical: isCompact ? 18 : 30,
+              },
+            ]}
           >
-            Welcome Back 👋
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: "#4b4b4b", marginBottom: 20 }}
-          >
-            Login to your e-Livestock account
-          </Text>
+            <View style={[styles.heroColumn, isWide && styles.heroColumnWide]}>
+              <View style={styles.brandRow}>
+                <Image
+                  source={require("../assets/logo.png")}
+                  style={[styles.logo, isCompact && styles.logoCompact]}
+                />
+                <View style={styles.brandTextWrap}>
+                  <Text style={styles.eyebrow}>Municipal Agriculture Office</Text>
+                  <Text style={[styles.logoText, isCompact && styles.logoTextCompact]}>
+                    e-Livestock services for Sipocot
+                  </Text>
+                </View>
+              </View>
 
-          <TextInput
-            label="Username"
-            mode="outlined"
-            value={username}
-            onChangeText={setUsername}
-            style={styles.input}
-            left={<TextInput.Icon icon="account" />}
-            outlineColor={colors.outline}
-          />
+              <View style={styles.heroPill}>
+                <MaterialCommunityIcons
+                  name="sprout"
+                  size={18}
+                  color={agriPalette.white}
+                />
+                <Text style={styles.heroPillText}>
+                  Connected livestock records
+                </Text>
+              </View>
 
-          <TextInput
-            label="Password"
-            mode="outlined"
-            secureTextEntry={secureText}
-            value={password}
-            onChangeText={setPassword}
-            style={styles.input}
-            left={<TextInput.Icon icon="lock" />}
-            right={
-              <TextInput.Icon
-                icon={secureText ? "eye-off" : "eye"}
-                onPress={() => setSecureText(!secureText)}
-              />
-            }
-            outlineColor={colors.outline}
-          />
-
-          <TouchableOpacity
-            onPress={() => router.push("/sendOtp")}
-            style={{ alignSelf: "flex-end", marginBottom: 8 }}
-          >
-            <Text
-              variant="bodySmall"
-              style={{ color: colors.primary, fontWeight: "600" }}
-            >
-              Forgot password?
-            </Text>
-          </TouchableOpacity>
-
-          {loading ? (
-            <ActivityIndicator
-              animating={true}
-              color={colors.primary}
-              style={{ marginVertical: 16 }}
-            />
-          ) : (
-            <Button
-              mode="contained"
-              onPress={handleLogin}
-              style={[styles.button, { backgroundColor: colors.primary }]}
-              contentStyle={{ paddingVertical: 6 }}
-            >
-              Login
-            </Button>
-          )}
-
-          <View style={styles.signupContainer}>
-            <Text variant="bodyMedium">Don’t have an account? </Text>
-            <TouchableOpacity onPress={() => router.push("/register")}>
-              <Text
-                variant="bodyMedium"
-                style={{ color: colors.primary, fontWeight: "600" }}
-              >
-                Sign up here
+              <Text style={[styles.heroTitle, isCompact && styles.heroTitleCompact]}>
+                Modern field access for permits, schedules, and inspections.
               </Text>
-            </TouchableOpacity>
+              <Text
+                style={[styles.heroSubtitle, isCompact && styles.heroSubtitleCompact]}
+              >
+                Sign in to manage livestock documents with a cleaner,
+                agriculture-led dashboard experience.
+              </Text>
+
+              <View style={styles.heroChipRow}>
+                <InfoChip label="Permit tracking" />
+                <InfoChip label="Inspection status" />
+                <InfoChip label="QR-ready records" />
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.card,
+                isCompact && styles.cardCompact,
+                { backgroundColor: colors.surface },
+              ]}
+            >
+              <Text style={styles.cardEyebrow}>Secure Login</Text>
+              <Text style={[styles.cardTitle, { color: colors.onSurface }]}>
+                Welcome back
+              </Text>
+              <Text style={styles.cardSubtitle}>
+                Access your e-Livestock account and continue your field
+                operations.
+              </Text>
+
+              <TextInput
+                label="Username"
+                mode="outlined"
+                value={username}
+                onChangeText={setUsername}
+                style={styles.input}
+                left={<TextInput.Icon icon="account" />}
+                outlineColor={colors.outline}
+                activeOutlineColor={colors.primary}
+              />
+
+              <TextInput
+                label="Password"
+                mode="outlined"
+                secureTextEntry={secureText}
+                value={password}
+                onChangeText={setPassword}
+                style={styles.input}
+                left={<TextInput.Icon icon="lock" />}
+                right={
+                  <TextInput.Icon
+                    icon={secureText ? "eye-off" : "eye"}
+                    onPress={() => setSecureText(!secureText)}
+                  />
+                }
+                outlineColor={colors.outline}
+                activeOutlineColor={colors.primary}
+              />
+
+              <TouchableOpacity
+                onPress={() => router.push("/sendOtp")}
+                style={styles.linkWrap}
+              >
+                <Text variant="bodySmall" style={styles.linkText}>
+                  Forgot password?
+                </Text>
+              </TouchableOpacity>
+
+              <AgriButton
+                title="Login"
+                subtitle="Open your livestock dashboard"
+                icon="login"
+                onPress={handleLogin}
+                loading={loading}
+              />
+
+              <View style={styles.signupContainer}>
+                <Text variant="bodyMedium" style={styles.signupText}>
+                  Do not have an account?
+                </Text>
+                <TouchableOpacity onPress={() => router.push("/register")}>
+                  <Text variant="bodyMedium" style={styles.signupLink}>
+                    Sign up here
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        </Card.Content>
-      </Card>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
+  );
+}
+
+function InfoChip({ label }) {
+  return (
+    <View style={styles.infoChip}>
+      <Text style={styles.infoChipText}>{label}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    alignItems: "center",
-    padding: 20,
     position: "relative",
   },
-  curvedContainer: {
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  glowTopLeft: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "50%",
-    backgroundColor: "#A5D6A7",
-    borderBottomLeftRadius: 200,
-    borderBottomRightRadius: 200,
-    zIndex: -1,
+    top: -90,
+    left: -20,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: "rgba(240,212,142,0.18)",
+  },
+  glowBottomRight: {
+    position: "absolute",
+    bottom: -60,
+    right: -20,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  page: {
+    width: "100%",
+    maxWidth: 1100,
+    alignSelf: "center",
+    justifyContent: "center",
+  },
+  heroColumn: {
+    width: "100%",
+    marginBottom: 20,
+  },
+  heroColumnWide: {
+    flex: 1,
+    paddingRight: 28,
+    marginBottom: 0,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 84,
+    height: 84,
     resizeMode: "contain",
-    marginTop: 60,
-    marginBottom: 10,
+    marginRight: 16,
+  },
+  logoCompact: {
+    width: 68,
+    height: 68,
+    marginRight: 12,
+  },
+  brandTextWrap: {
+    flex: 1,
+  },
+  eyebrow: {
+    color: "rgba(255,244,214,0.86)",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
   },
   logoText: {
+    marginTop: 4,
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 34,
+    color: agriPalette.white,
+  },
+  logoTextCompact: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  heroPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 22,
+    marginBottom: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  heroPillText: {
+    marginLeft: 8,
+    color: agriPalette.white,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  heroTitle: {
+    color: agriPalette.white,
+    fontSize: Platform.OS === "web" ? 40 : 32,
+    fontWeight: "900",
+    lineHeight: Platform.OS === "web" ? 46 : 38,
+    maxWidth: 620,
+  },
+  heroTitleCompact: {
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  heroSubtitle: {
+    marginTop: 14,
+    color: "rgba(255,255,255,0.82)",
     fontSize: 16,
-    fontWeight: "600",
-    color: "#2E7D32",
-    marginBottom: 20,
-    textAlign: "center",
+    lineHeight: 24,
+    maxWidth: 560,
+  },
+  heroSubtitleCompact: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  heroChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 22,
+  },
+  infoChip: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  infoChipText: {
+    color: agriPalette.white,
+    fontSize: 13,
+    fontWeight: "700",
   },
   card: {
-    width: Platform.OS === "web" ? 420 : "100%",
-    borderRadius: 16,
-    elevation: 4,
-    paddingBottom: 10,
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    width: "100%",
+    maxWidth: Platform.OS === "web" ? 440 : 520,
+    alignSelf: "center",
+    borderRadius: 30,
+    paddingHorizontal: 22,
+    paddingVertical: 24,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    shadowColor: "#10251a",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
+    elevation: 6,
+  },
+  cardCompact: {
+    borderRadius: 26,
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+  },
+  cardEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  cardTitle: {
+    marginTop: 10,
+    fontSize: 30,
+    fontWeight: "900",
+  },
+  cardSubtitle: {
+    marginTop: 10,
+    marginBottom: 20,
+    color: agriPalette.inkSoft,
+    fontSize: 15,
+    lineHeight: 22,
   },
   input: {
-    marginBottom: 12,
-    backgroundColor: "white",
+    marginBottom: 14,
+    backgroundColor: agriPalette.white,
   },
-  button: {
-    marginTop: 10,
-    borderRadius: 8,
+  linkWrap: {
+    alignSelf: "flex-end",
+    marginBottom: 14,
+  },
+  linkText: {
+    color: agriPalette.field,
+    fontWeight: "700",
   },
   signupContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 16,
+    flexWrap: "wrap",
+    marginTop: 18,
+  },
+  signupText: {
+    color: agriPalette.inkSoft,
+  },
+  signupLink: {
+    color: agriPalette.field,
+    fontWeight: "700",
+    marginLeft: 6,
   },
 });

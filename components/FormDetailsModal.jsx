@@ -1,8 +1,21 @@
-import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import QRCode from "react-native-qrcode-svg";
+import AgriButton from "./AgriButton";
+import { agriPalette } from "../constants/agriTheme";
 
 export default function FormDetailsModal({ visible, onClose, form }) {
+  const { width, height } = useWindowDimensions();
+  const isWide = width >= 760;
+
   if (!form) return null;
 
   const getDaysRemaining = (expirationDate) => {
@@ -10,80 +23,144 @@ export default function FormDetailsModal({ visible, onClose, form }) {
     const today = new Date();
     const exp = new Date(expirationDate);
     const diff = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
-    return diff < 0 ? "EXPIRED" : `${diff} DAY(S) REMAINING`;
+    return diff < 0 ? "Expired" : `${diff} day(s) remaining`;
   };
+
+  const formatValue = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return "Not provided";
+    }
+    return String(value);
+  };
+
+  const detailEntries = Object.entries(form).filter(
+    ([key]) => !["qr_code", "qr_expiration"].includes(key)
+  );
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
+      transparent
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
-          <ScrollView
-            contentContainerStyle={{ padding: 15, paddingBottom: 80 }}
+        <View
+          style={[
+            styles.modalContainer,
+            {
+              width: Math.min(width - 24, 920),
+              maxHeight: height * 0.88,
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[agriPalette.fieldDeep, agriPalette.field]}
+            style={styles.hero}
           >
-            {form.qr_code && (
-              <View style={styles.qrCard}>
-                <QRCode
-                  value={form.qr_code}
-                  size={120}
-                  backgroundColor="#fff"
-                />
-              </View>
-            )}
+            <View style={styles.heroIconWrap}>
+              <MaterialCommunityIcons
+                name="file-document-outline"
+                size={24}
+                color={agriPalette.white}
+              />
+            </View>
 
-            <View style={styles.fullWidthDetails}>
-              {form.qr_code && (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailKey}>QR CODE:</Text>
-                  <Text style={styles.detailValue}>{form.qr_code}</Text>
-                </View>
-              )}
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroEyebrow}>Submitted livestock form</Text>
+              <Text style={styles.heroTitle}>
+                {form.form_id ? `Form #${form.form_id}` : "Form details"}
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                Review the QR record, owner details, and inspection metadata in
+                one place.
+              </Text>
+            </View>
+          </LinearGradient>
 
-              {form.qr_expiration && (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailKey}>QR EXPIRATION:</Text>
-                  <Text
-                    style={[
-                      styles.detailValue,
-                      getDaysRemaining(form.qr_expiration) === "EXPIRED"
-                        ? { color: "red" }
-                        : { color: "#2E7D32" },
-                    ]}
-                  >
-                    {getDaysRemaining(form.qr_expiration)}
-                  </Text>
-                </View>
-              )}
-
-              {Object.keys(form).map((key) => {
-                if (
-                  key === "qr_code" ||
-                  key === "qr_expiration" ||
-                  key === "severity_rating" ||
-                  key === "suggestion"
-                )
-                  return null;
-
-                return (
-                  <View key={key} style={styles.detailCard}>
-                    <Text style={styles.detailKey}>
-                      {key.replace(/_/g, " ").toUpperCase()}:
-                    </Text>
-                    <Text style={styles.detailValue}>{form[key]}</Text>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}
+          >
+            <View style={[styles.topSection, isWide && styles.topSectionWide]}>
+              {form.qr_code ? (
+                <View style={[styles.qrCard, isWide && styles.topPanelWide]}>
+                  <Text style={styles.panelEyebrow}>QR Code</Text>
+                  <Text style={styles.panelTitle}>Livestock permit token</Text>
+                  <View style={styles.qrSurface}>
+                    <QRCode
+                      value={form.qr_code}
+                      size={isWide ? 154 : 132}
+                      backgroundColor="#fff"
+                    />
                   </View>
-                );
-              })}
+                  <Text style={styles.qrText}>{form.qr_code}</Text>
+                </View>
+              ) : null}
+
+              <View style={[styles.expiryCard, isWide && styles.topPanelWide]}>
+                <Text style={styles.panelEyebrow}>Status</Text>
+                <Text style={styles.panelTitle}>QR validity window</Text>
+
+                <View style={styles.statusRow}>
+                  <View style={styles.statusPill}>
+                    <MaterialCommunityIcons
+                      name="calendar-clock-outline"
+                      size={16}
+                      color={agriPalette.fieldDeep}
+                    />
+                    <Text style={styles.statusPillText}>
+                      {form.qr_expiration
+                        ? getDaysRemaining(form.qr_expiration)
+                        : "No expiration provided"}
+                    </Text>
+                  </View>
+                </View>
+
+                {form.qr_expiration ? (
+                  <Text style={styles.expiryText}>
+                    Expires on {new Date(form.qr_expiration).toLocaleString()}
+                  </Text>
+                ) : (
+                  <Text style={styles.expiryText}>
+                    Expiration metadata was not returned for this form.
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.detailsHeader}>
+              <Text style={styles.sectionEyebrow}>Field details</Text>
+              <Text style={styles.sectionTitle}>
+                Full record snapshot
+              </Text>
+            </View>
+
+            <View style={[styles.detailsGrid, isWide && styles.detailsGridWide]}>
+              {detailEntries.map(([key, value]) => (
+                <View
+                  key={key}
+                  style={[styles.detailCard, isWide && styles.detailCardWide]}
+                >
+                  <Text style={styles.detailKey}>
+                    {key.replace(/_/g, " ").toUpperCase()}
+                  </Text>
+                  <Text style={styles.detailValue}>{formatValue(value)}</Text>
+                </View>
+              ))}
             </View>
           </ScrollView>
 
-          <View style={styles.closeButtonContainer}>
-            <Button mode="contained" buttonColor="#2E7D32" onPress={onClose}>
-              Close
-            </Button>
+          <View style={styles.footer}>
+            <AgriButton
+              title="Close details"
+              subtitle="Return to your submitted forms list"
+              icon="arrow-left"
+              variant="earth"
+              trailingIcon={null}
+              compact
+              onPress={onClose}
+            />
           </View>
         </View>
       </View>
@@ -94,42 +171,185 @@ export default function FormDetailsModal({ visible, onClose, form }) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(15, 22, 18, 0.58)",
     justifyContent: "center",
     alignItems: "center",
+    padding: 12,
   },
   modalContainer: {
-    width: "90%",
-    height: "80%",
-    backgroundColor: "#E8F5E9",
-    borderRadius: 12,
+    backgroundColor: agriPalette.cream,
+    borderRadius: 30,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  hero: {
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  heroIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    marginRight: 14,
+  },
+  heroTextWrap: {
+    flex: 1,
+  },
+  heroEyebrow: {
+    color: "rgba(255,244,214,0.9)",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  heroTitle: {
+    marginTop: 8,
+    color: agriPalette.white,
+    fontSize: 28,
+    fontWeight: "900",
+  },
+  heroSubtitle: {
+    marginTop: 8,
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  content: {
+    padding: 18,
+    paddingBottom: 10,
+  },
+  topSection: {
+    gap: 14,
+  },
+  topSectionWide: {
+    flexDirection: "row",
+  },
+  topPanelWide: {
+    flex: 1,
   },
   qrCard: {
-    padding: 15,
-    backgroundColor: "#C8E6C9",
-    borderRadius: 12,
+    backgroundColor: agriPalette.surface,
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: "#A5D6A7",
-    elevation: 3,
-    alignSelf: "center",
-    marginBottom: 15,
+    borderColor: agriPalette.border,
+    padding: 18,
+    alignItems: "center",
   },
-  fullWidthDetails: { marginTop: 10 },
+  qrSurface: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: agriPalette.white,
+  },
+  qrText: {
+    marginTop: 14,
+    fontSize: 13,
+    lineHeight: 19,
+    color: agriPalette.inkSoft,
+    textAlign: "center",
+  },
+  expiryCard: {
+    backgroundColor: agriPalette.surface,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    padding: 18,
+  },
+  panelEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  panelTitle: {
+    marginTop: 8,
+    fontSize: 22,
+    fontWeight: "900",
+    color: agriPalette.ink,
+  },
+  statusRow: {
+    marginTop: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: agriPalette.mist,
+  },
+  statusPillText: {
+    marginLeft: 8,
+    color: agriPalette.fieldDeep,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  expiryText: {
+    marginTop: 16,
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  detailsHeader: {
+    marginTop: 22,
+    marginBottom: 14,
+  },
+  sectionEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  sectionTitle: {
+    marginTop: 8,
+    fontSize: 24,
+    fontWeight: "900",
+    color: agriPalette.ink,
+  },
+  detailsGrid: {
+    gap: 12,
+  },
+  detailsGridWide: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
   detailCard: {
-    backgroundColor: "#C8E6C9",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: agriPalette.surface,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: "#A5D6A7",
-    marginBottom: 8,
+    borderColor: agriPalette.border,
+    padding: 16,
   },
-  detailKey: { fontWeight: "bold", marginBottom: 3, color: "#2E7D32" },
-  detailValue: { fontSize: 16, color: "#1B5E20" },
-  closeButtonContainer: {
-    padding: 15,
+  detailCardWide: {
+    width: "48.4%",
+  },
+  detailKey: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+  detailValue: {
+    marginTop: 8,
+    color: agriPalette.ink,
+    fontSize: 16,
+    lineHeight: 23,
+  },
+  footer: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     borderTopWidth: 1,
-    borderColor: "#A5D6A7",
-    backgroundColor: "#C8E6C9",
+    borderColor: agriPalette.border,
+    backgroundColor: agriPalette.surface,
   },
 });

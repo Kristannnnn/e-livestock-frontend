@@ -1,13 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Slot, usePathname, useRouter } from "expo-router";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Provider as PaperProvider } from "react-native-paper";
+import { agriPalette, agriPaperTheme } from "../../constants/agriTheme";
 
 export default function ScreensLayout() {
   const path = usePathname();
   const router = useRouter();
 
-  // Screens where footer should be hidden
   const hideFooterScreens = [
     "/ownerDashboard",
     "/register",
@@ -23,7 +24,6 @@ export default function ScreensLayout() {
   ];
   const shouldHideFooter = hideFooterScreens.includes(path);
 
-  // Logout function
   const handleLogout = () => {
     Alert.alert(
       "Confirm Logout",
@@ -36,7 +36,7 @@ export default function ScreensLayout() {
           onPress: async () => {
             try {
               await AsyncStorage.clear();
-              router.replace("/"); // Redirect to login
+              router.replace("/");
             } catch (err) {
               console.error("Logout error:", err);
               Alert.alert("Error", "Failed to log out.");
@@ -49,28 +49,30 @@ export default function ScreensLayout() {
   };
 
   return (
-    <PaperProvider>
-      <View style={{ flex: 1 }}>
-        {/* Slot renders the current page */}
+    <PaperProvider theme={agriPaperTheme}>
+      <View style={styles.shell}>
         <Slot />
 
-        {/* Footer */}
         {!shouldHideFooter && (
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-around",
-              paddingVertical: 10,
-              borderTopWidth: 1,
-              borderColor: "#ccc",
-              backgroundColor: "#f8f8f8",
-            }}
-          >
-            <FooterButton label="Stockyard" to="/stockyard" path={path} />
-            <FooterButton label="Schedules" to="/checkSchedule" path={path} />
-            <Pressable onPress={handleLogout}>
-              <Text style={{ color: "red", fontWeight: "bold" }}>Logout</Text>
-            </Pressable>
+          <View style={styles.footer}>
+            <FooterButton
+              label="Stockyard"
+              to="/stockyard"
+              path={path}
+              icon="barn"
+            />
+            <FooterButton
+              label="Schedules"
+              to="/checkSchedule"
+              path={path}
+              icon="calendar-month-outline"
+            />
+            <FooterButton
+              label="Logout"
+              icon="logout"
+              onPress={handleLogout}
+              danger
+            />
           </View>
         )}
       </View>
@@ -78,15 +80,91 @@ export default function ScreensLayout() {
   );
 }
 
-function FooterButton({ label, to, path }) {
+function FooterButton({ label, to, path, icon, onPress, danger = false }) {
   const router = useRouter();
-  const isActive = path === to;
+  const isActive = Boolean(to && path.startsWith(to));
 
   return (
-    <Pressable onPress={() => router.replace(to)}>
-      <Text style={{ color: isActive ? "blue" : "black", fontWeight: "bold" }}>
+    <Pressable
+      onPress={onPress || (() => router.replace(to))}
+      style={({ pressed }) => [
+        styles.footerButton,
+        isActive && styles.footerButtonActive,
+        danger && styles.footerButtonDanger,
+        pressed && styles.footerButtonPressed,
+      ]}
+    >
+      <MaterialCommunityIcons
+        name={icon}
+        size={20}
+        color={
+          danger
+            ? agriPalette.redClay
+            : isActive
+            ? agriPalette.white
+            : agriPalette.fieldDeep
+        }
+      />
+      <Text
+        style={[
+          styles.footerLabel,
+          isActive && styles.footerLabelActive,
+          danger && styles.footerLabelDanger,
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  shell: {
+    flex: 1,
+    backgroundColor: agriPalette.cream,
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderColor: "#E5E6DB",
+    backgroundColor: agriPalette.surface,
+  },
+  footerButton: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    backgroundColor: "#FAF7EE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerButtonActive: {
+    backgroundColor: agriPalette.field,
+    borderColor: agriPalette.field,
+  },
+  footerButtonDanger: {
+    backgroundColor: "#FFF5F1",
+    borderColor: "#F2C9BA",
+  },
+  footerButtonPressed: {
+    opacity: 0.9,
+  },
+  footerLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "800",
+    color: agriPalette.fieldDeep,
+  },
+  footerLabelActive: {
+    color: agriPalette.white,
+  },
+  footerLabelDanger: {
+    color: agriPalette.redClay,
+  },
+});

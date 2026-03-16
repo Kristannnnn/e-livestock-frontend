@@ -1,28 +1,23 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
+import AgriButton from "../../components/AgriButton";
+import DashboardShell from "../../components/DashboardShell";
+import StatCard from "../../components/StatCard";
+import { agriPalette } from "../../constants/agriTheme";
 
 export default function DashboardScreen() {
   const router = useRouter();
-
   const [loading, setLoading] = useState(true);
+  const [firstName, setFirstName] = useState("");
   const [analytics, setAnalytics] = useState({
     total: 0,
     expired: 0,
     valid: 0,
   });
 
-  // Fetch analytics
-  const fetchAnalytics = async () => {
+  async function fetchAnalytics() {
     setLoading(true);
     try {
       const response = await fetch(
@@ -40,9 +35,15 @@ export default function DashboardScreen() {
       Alert.alert("Error", "Failed to load analytics.");
     }
     setLoading(false);
-  };
+  }
 
   useEffect(() => {
+    AsyncStorage.getItem("first_name").then((storedName) => {
+      if (storedName) {
+        setFirstName(storedName);
+      }
+    });
+
     fetchAnalytics();
   }, []);
 
@@ -60,152 +61,124 @@ export default function DashboardScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Analytics Cards */}
-        <View style={styles.analyticsWrapper}>
-          {/* TOTAL FORMS */}
-          <TouchableOpacity
-            style={[styles.analyticsCard, { backgroundColor: "#4CAF50" }]}
-            onPress={() => router.push("stockyard")}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="large" />
-            ) : (
-              <>
-                <Text style={styles.analyticsTitle}>Total Forms</Text>
-                <Text style={styles.analyticsNumber}>{analytics.total}</Text>
-              </>
-            )}
-          </TouchableOpacity>
+    <DashboardShell
+      eyebrow="Livestock owner portal"
+      title={
+        firstName ? `Welcome back, ${firstName}` : "Welcome back to e-Livestock"
+      }
+      subtitle="Track active permits, monitor expiring forms, and move from your stockyard to your next inspection schedule without the clutter."
+      summary={
+        loading
+          ? "Refreshing your livestock permit overview..."
+          : `${analytics.valid} active forms are ready for your next transaction.`
+      }
+    >
+      <View style={styles.statsGrid}>
+        <StatCard
+          label="Total forms"
+          value={analytics.total}
+          caption="Open your stockyard records and livestock QR permits."
+          icon="file-document-multiple-outline"
+          accent="meadow"
+          loading={loading}
+          onPress={() => router.push("/stockyard")}
+        />
+        <StatCard
+          label="Expired"
+          value={analytics.expired}
+          caption="Forms that need renewal before the next movement."
+          icon="calendar-remove-outline"
+          accent="clay"
+          loading={loading}
+        />
+        <StatCard
+          label="Valid forms"
+          value={analytics.valid}
+          caption="Records currently usable for inspection and transport."
+          icon="shield-check-outline"
+          accent="wheat"
+          loading={loading}
+        />
+      </View>
 
-          {/* EXPIRED FORMS */}
-          <TouchableOpacity
-            style={[styles.analyticsCard, { backgroundColor: "#EF5350" }]}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="large" />
-            ) : (
-              <>
-                <Text style={styles.analyticsTitle}>Expired</Text>
-                <Text style={styles.analyticsNumber}>{analytics.expired}</Text>
-              </>
-            )}
-          </TouchableOpacity>
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionEyebrow}>Quick actions</Text>
+        <Text style={styles.sectionTitle}>Move through your livestock tasks faster</Text>
+        <Text style={styles.sectionCopy}>
+          Jump into the stockyard, check your appointment queue, or safely end
+          your session. These buttons now use a more modern, agriculture-led
+          layout for faster scanning.
+        </Text>
 
-          {/* NOT EXPIRED */}
-          <TouchableOpacity
-            style={[styles.analyticsCard, { backgroundColor: "#66BB6A" }]}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="large" />
-            ) : (
-              <>
-                <Text style={styles.analyticsTitle}>Valid Forms</Text>
-                <Text style={styles.analyticsNumber}>{analytics.valid}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Action Buttons Row */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.smallButton, { backgroundColor: "#81C784" }]}
+        <View style={styles.actionStack}>
+          <AgriButton
+            title="Open Stockyard"
+            subtitle="Review livestock permits and QR details"
+            icon="barn"
+            variant="primary"
             onPress={() => router.push("/stockyard")}
-          >
-            <Text style={styles.smallButtonText}>Stockyard</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.smallButton, { backgroundColor: "#4DB6AC" }]}
+          />
+          <AgriButton
+            title="Check schedules"
+            subtitle="See upcoming inspections and appointment slots"
+            icon="calendar-month-outline"
+            variant="sky"
             onPress={() => router.push("/checkSchedule")}
-          >
-            <Text style={styles.smallButtonText}>Schedule</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Logout Button Below */}
-        <View style={styles.logoutWrapper}>
-          <TouchableOpacity
-            style={[styles.smallButton, { backgroundColor: "#E57373" }]}
+          />
+          <AgriButton
+            title="Logout"
+            subtitle="Finish this session securely"
+            icon="logout"
+            variant="danger"
             onPress={handleLogout}
-          >
-            <Text style={styles.smallButtonText}>Logout</Text>
-          </TouchableOpacity>
+          />
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    </DashboardShell>
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#E8F5E9",
-    paddingHorizontal: 20,
-    paddingTop: 40,
-  },
-  analyticsWrapper: {
-    marginTop: 50,
-    marginBottom: 25,
-  },
-
-  analyticsCard: {
-    width: "100%",
-    paddingVertical: 25,
-    borderRadius: 16,
-    marginBottom: 20,
-    elevation: 4,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-
-  analyticsTitle: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 5,
-  },
-
-  analyticsNumber: {
-    color: "#fff",
-    fontSize: 32,
-    fontWeight: "bold",
-  },
-
-  buttonRow: {
+  statsGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 15,
-    marginBottom: 15,
+    flexWrap: "wrap",
+    gap: 14,
+    marginBottom: 18,
   },
-
-  logoutWrapper: {
-    marginTop: 10,
-  },
-
-  smallButton: {
-    flex: 1,
-    marginHorizontal: 5,
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: "center",
+  sectionCard: {
+    borderRadius: 30,
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
   },
-
-  smallButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+  sectionEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
     textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  sectionTitle: {
+    marginTop: 8,
+    color: agriPalette.ink,
+    fontSize: 25,
+    fontWeight: "900",
+  },
+  sectionCopy: {
+    marginTop: 10,
+    marginBottom: 18,
+    color: agriPalette.inkSoft,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  actionStack: {
+    gap: 12,
   },
 });
