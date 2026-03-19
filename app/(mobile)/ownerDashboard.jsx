@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
+import LogoutConfirmModal from "../../components/LogoutConfirmModal";
 import StatCard from "../../components/StatCard";
 import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
+import logoutSession from "../../lib/auth/logoutSession";
 import { agriPalette } from "../../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.owner.forms);
@@ -79,6 +81,8 @@ export default function DashboardScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [firstName, setFirstName] = useState("");
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [analytics, setAnalytics] = useState({
     total: 0,
     expired: 0,
@@ -136,17 +140,33 @@ export default function DashboardScreen() {
     loadOwnerDashboard();
   }, []);
 
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        onPress: async () => {
-          await AsyncStorage.clear();
-          router.replace("/");
-        },
-      },
-    ]);
+  const handleLogout = () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLogoutModalVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    try {
+      setLoggingOut(true);
+      await logoutSession();
+      setLogoutModalVisible(false);
+      router.replace("/");
+    } catch (error) {
+      console.error(error);
+      Alert.alert(
+        "Logout failed",
+        "We could not finish signing you out. Please try again."
+      );
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
@@ -163,6 +183,13 @@ export default function DashboardScreen() {
           : `${analytics.valid} of your forms are still active for inspection and transport.`
       }
     >
+      <LogoutConfirmModal
+        visible={logoutModalVisible}
+        loading={loggingOut}
+        onCancel={() => setLogoutModalVisible(false)}
+        onConfirm={confirmLogout}
+      />
+
       <View style={styles.statsGrid}>
         <StatCard
           label="My forms"

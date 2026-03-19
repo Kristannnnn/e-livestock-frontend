@@ -1,41 +1,59 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { Alert } from "react-native";
+import { useState } from "react";
+import { Alert, View } from "react-native";
 import AgriButton from "./AgriButton";
+import LogoutConfirmModal from "./LogoutConfirmModal";
+import logoutSession from "../lib/auth/logoutSession";
 
 export default function LogoutButton() {
   const router = useRouter();
+  const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogout = async () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Yes",
-          onPress: async () => {
-            try {
-              await AsyncStorage.clear();
-              router.replace("/");
-            } catch (err) {
-              console.error("Logout error:", err);
-              Alert.alert("Error", "Failed to log out. Please try again.");
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+  const handleLogout = () => {
+    if (loading) {
+      return;
+    }
+
+    setVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    if (loading) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await logoutSession();
+      setVisible(false);
+      router.replace("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+      Alert.alert(
+        "Logout failed",
+        "We could not finish signing you out. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <AgriButton
-      title="Logout"
-      subtitle="End this session securely"
-      icon="logout"
-      variant="danger"
-      onPress={handleLogout}
-    />
+    <View>
+      <LogoutConfirmModal
+        visible={visible}
+        loading={loading}
+        onCancel={() => setVisible(false)}
+        onConfirm={confirmLogout}
+      />
+      <AgriButton
+        title="Logout"
+        subtitle="End this session securely"
+        icon="logout"
+        variant="danger"
+        onPress={handleLogout}
+      />
+    </View>
   );
 }

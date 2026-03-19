@@ -4,11 +4,10 @@ import { Slot, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Provider as PaperProvider } from "react-native-paper";
+import LogoutConfirmModal from "../../components/LogoutConfirmModal";
 import { agriPalette, agriPaperTheme } from "../../constants/agriTheme";
-import {
-  syncAccountPushToken,
-  unregisterAccountPushToken,
-} from "../../lib/notifications/deviceNotifications";
+import logoutSession from "../../lib/auth/logoutSession";
+import { syncAccountPushToken } from "../../lib/notifications/deviceNotifications";
 
 const HIDE_FOOTER_SCREENS = new Set([
   "/register",
@@ -124,6 +123,8 @@ export default function ScreensLayout() {
   const path = usePathname();
   const router = useRouter();
   const [role, setRole] = useState("");
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const pushSyncAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -173,39 +174,44 @@ export default function ScreensLayout() {
   const shouldHideFooter = HIDE_FOOTER_SCREENS.has(path) || !footerItems.length;
 
   const handleLogout = () => {
-    Alert.alert(
-      "Confirm Logout",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const storedAccountId = parseInt(
-                (await AsyncStorage.getItem("account_id")) || "0",
-                10,
-              );
+    if (loggingOut) {
+      return;
+    }
 
-              await unregisterAccountPushToken(storedAccountId);
-              await AsyncStorage.clear();
-              router.replace("/");
-            } catch (err) {
-              console.error("Logout error:", err);
-              Alert.alert("Error", "Failed to log out.");
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+    setLogoutModalVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    try {
+      setLoggingOut(true);
+      await logoutSession();
+      setLogoutModalVisible(false);
+      router.replace("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+      Alert.alert(
+        "Logout failed",
+        "We could not finish signing you out. Please try again."
+      );
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
     <PaperProvider theme={agriPaperTheme}>
       <View style={styles.shell}>
         <Slot />
+        <LogoutConfirmModal
+          visible={logoutModalVisible}
+          loading={loggingOut}
+          onCancel={() => setLogoutModalVisible(false)}
+          onConfirm={confirmLogout}
+        />
 
         {!shouldHideFooter && (
           <View style={styles.footer}>

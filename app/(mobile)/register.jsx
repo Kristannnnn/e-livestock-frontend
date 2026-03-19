@@ -25,9 +25,95 @@ import { agriPaperTheme, agriPalette } from "../../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.auth.register);
 const API_SEND_OTP = apiUrl(apiRoutes.auth.sendOtp);
+const REGISTRATION_FIELD_LABELS = {
+  firstname: "First name",
+  lastname: "Last name",
+  address: "Address",
+  email: "Email address",
+  phone: "Phone number",
+  username: "Username",
+  password: "Password",
+};
 
 function pause(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createEmptyFieldErrors() {
+  return {
+    firstname: "",
+    lastname: "",
+    address: "",
+    email: "",
+    phone: "",
+    username: "",
+    password: "",
+  };
+}
+
+function formatFieldList(fields) {
+  if (!fields.length) {
+    return "";
+  }
+
+  if (fields.length === 1) {
+    return fields[0];
+  }
+
+  if (fields.length === 2) {
+    return `${fields[0]} and ${fields[1]}`;
+  }
+
+  return `${fields.slice(0, -1).join(", ")}, and ${fields[fields.length - 1]}`;
+}
+
+function validateRegistrationFields(values) {
+  const errors = createEmptyFieldErrors();
+  const missingFields = [];
+  const invalidFields = [];
+
+  if (!values.firstname.trim()) {
+    errors.firstname = "Enter your first name.";
+    missingFields.push(REGISTRATION_FIELD_LABELS.firstname);
+  }
+
+  if (!values.lastname.trim()) {
+    errors.lastname = "Enter your last name.";
+    missingFields.push(REGISTRATION_FIELD_LABELS.lastname);
+  }
+
+  if (!values.address.trim()) {
+    errors.address = "Enter your address.";
+    missingFields.push(REGISTRATION_FIELD_LABELS.address);
+  }
+
+  if (!values.email.trim()) {
+    errors.email = "Enter your email address.";
+    missingFields.push(REGISTRATION_FIELD_LABELS.email);
+  } else if (!values.email.includes("@")) {
+    errors.email = "Use a valid email address.";
+    invalidFields.push(REGISTRATION_FIELD_LABELS.email);
+  }
+
+  if (!values.phone.trim()) {
+    errors.phone = "Enter your phone number.";
+    missingFields.push(REGISTRATION_FIELD_LABELS.phone);
+  } else if (values.phone.length !== 11) {
+    errors.phone = "Phone number must be exactly 11 digits.";
+    invalidFields.push(REGISTRATION_FIELD_LABELS.phone);
+  }
+
+  if (!values.username.trim()) {
+    errors.username = "Choose a username.";
+    missingFields.push(REGISTRATION_FIELD_LABELS.username);
+  }
+
+  if (!values.password.trim()) {
+    errors.password = "Create a password.";
+    missingFields.push(REGISTRATION_FIELD_LABELS.password);
+  }
+
+  return { errors, missingFields, invalidFields };
 }
 
 export default function Register() {
@@ -55,42 +141,53 @@ function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [secureText, setSecureText] = useState(true);
   const [notice, setNotice] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState(createEmptyFieldErrors());
 
-  const isValidEmail = (value) => value.includes("@");
-  const isValidPhone = (value) => value.length === 11;
+  const clearFieldError = (field) => {
+    setFieldErrors((current) =>
+      current[field] ? { ...current, [field]: "" } : current
+    );
+  };
+
+  const handleFieldChange = (field, setter) => (value) => {
+    setter(value);
+    clearFieldError(field);
+
+    if (notice && !loading) {
+      setNotice(null);
+    }
+  };
 
   const handleRegister = async () => {
-    if (
-      !firstname ||
-      !lastname ||
-      !address ||
-      !email ||
-      !phone ||
-      !username ||
-      !password
-    ) {
+    const validation = validateRegistrationFields({
+      firstname,
+      lastname,
+      address,
+      email: email.trim().toLowerCase(),
+      phone,
+      username,
+      password,
+    });
+
+    setFieldErrors(validation.errors);
+
+    if (validation.missingFields.length) {
       setNotice({
         tone: "error",
-        title: "Missing details",
-        message: "Please fill in all registration fields before creating your account.",
+        title:
+          validation.missingFields.length === 1
+            ? `${validation.missingFields[0]} is required`
+            : "Complete the highlighted fields",
+        message: `Add ${formatFieldList(validation.missingFields)} before creating your account.`,
       });
       return;
     }
 
-    if (!isValidEmail(email)) {
+    if (validation.invalidFields.length) {
       setNotice({
         tone: "warning",
-        title: "Invalid email",
-        message: "Use a valid email address because registration ends with OTP verification.",
-      });
-      return;
-    }
-
-    if (!isValidPhone(phone)) {
-      setNotice({
-        tone: "warning",
-        title: "Invalid phone number",
-        message: "Phone number must be exactly 11 digits.",
+        title: "Check the highlighted details",
+        message: `Fix ${formatFieldList(validation.invalidFields)} and try again.`,
       });
       return;
     }
@@ -155,6 +252,7 @@ function RegisterScreen() {
         title: "Account created",
         message: "Your OTP is on the way. Opening the email verification step now.",
       });
+      setFieldErrors(createEmptyFieldErrors());
       await pause(700);
       router.replace({
         pathname: "/verifyOtp",
@@ -171,6 +269,11 @@ function RegisterScreen() {
       setLoading(false);
     }
   };
+
+  const renderFieldError = (field) =>
+    fieldErrors[field] ? (
+      <Text style={styles.fieldErrorText}>{fieldErrors[field]}</Text>
+    ) : null;
 
   return (
     <LinearGradient
@@ -302,50 +405,58 @@ function RegisterScreen() {
                     label="First Name"
                     mode="outlined"
                     value={firstname}
-                    onChangeText={setFirstname}
+                    onChangeText={handleFieldChange("firstname", setFirstname)}
                     left={<TextInput.Icon icon="account-outline" />}
                     style={styles.input}
                     outlineColor={colors.outline}
                     activeOutlineColor={colors.primary}
+                    error={Boolean(fieldErrors.firstname)}
                   />
+                  {renderFieldError("firstname")}
                 </View>
                 <View style={[styles.fieldWrap, isTablet && styles.halfField]}>
                   <TextInput
                     label="Last Name"
                     mode="outlined"
                     value={lastname}
-                    onChangeText={setLastname}
+                    onChangeText={handleFieldChange("lastname", setLastname)}
                     left={<TextInput.Icon icon="account-outline" />}
                     style={styles.input}
                     outlineColor={colors.outline}
                     activeOutlineColor={colors.primary}
+                    error={Boolean(fieldErrors.lastname)}
                   />
+                  {renderFieldError("lastname")}
                 </View>
                 <View style={[styles.fieldWrap, styles.fullWidthField]}>
                   <TextInput
                     label="Address"
                     mode="outlined"
                     value={address}
-                    onChangeText={setAddress}
+                    onChangeText={handleFieldChange("address", setAddress)}
                     left={<TextInput.Icon icon="map-marker-outline" />}
                     style={styles.input}
                     outlineColor={colors.outline}
                     activeOutlineColor={colors.primary}
+                    error={Boolean(fieldErrors.address)}
                   />
+                  {renderFieldError("address")}
                 </View>
                 <View style={[styles.fieldWrap, isTablet && styles.halfField]}>
                   <TextInput
                     label="Email"
                     mode="outlined"
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={handleFieldChange("email", setEmail)}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     left={<TextInput.Icon icon="email-outline" />}
                     style={styles.input}
                     outlineColor={colors.outline}
                     activeOutlineColor={colors.primary}
+                    error={Boolean(fieldErrors.email)}
                   />
+                  {renderFieldError("email")}
                 </View>
                 <View style={[styles.fieldWrap, isTablet && styles.halfField]}>
                   <TextInput
@@ -356,6 +467,11 @@ function RegisterScreen() {
                       const numeric = text.replace(/[^0-9]/g, "");
                       if (numeric.length <= 11) {
                         setPhone(numeric);
+                        clearFieldError("phone");
+
+                        if (notice && !loading) {
+                          setNotice(null);
+                        }
                       }
                     }}
                     keyboardType="phone-pad"
@@ -363,19 +479,23 @@ function RegisterScreen() {
                     style={styles.input}
                     outlineColor={colors.outline}
                     activeOutlineColor={colors.primary}
+                    error={Boolean(fieldErrors.phone)}
                   />
+                  {renderFieldError("phone")}
                 </View>
                 <View style={[styles.fieldWrap, isTablet && styles.halfField]}>
                   <TextInput
                     label="Username"
                     mode="outlined"
                     value={username}
-                    onChangeText={setUsername}
+                    onChangeText={handleFieldChange("username", setUsername)}
                     left={<TextInput.Icon icon="badge-account-outline" />}
                     style={styles.input}
                     outlineColor={colors.outline}
                     activeOutlineColor={colors.primary}
+                    error={Boolean(fieldErrors.username)}
                   />
+                  {renderFieldError("username")}
                 </View>
                 <View style={[styles.fieldWrap, isTablet && styles.halfField]}>
                   <TextInput
@@ -383,7 +503,7 @@ function RegisterScreen() {
                     mode="outlined"
                     secureTextEntry={secureText}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={handleFieldChange("password", setPassword)}
                     left={<TextInput.Icon icon="lock-outline" />}
                     right={
                       <TextInput.Icon
@@ -394,7 +514,9 @@ function RegisterScreen() {
                     style={styles.input}
                     outlineColor={colors.outline}
                     activeOutlineColor={colors.primary}
+                    error={Boolean(fieldErrors.password)}
                   />
+                  {renderFieldError("password")}
                 </View>
               </View>
 
@@ -710,6 +832,14 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: agriPalette.white,
+  },
+  fieldErrorText: {
+    marginTop: 6,
+    marginLeft: 4,
+    color: agriPalette.redClay,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17,
   },
   requirementsCard: {
     marginTop: 6,

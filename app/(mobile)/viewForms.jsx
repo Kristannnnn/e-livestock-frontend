@@ -1,8 +1,10 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import {
   Alert,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -25,7 +27,31 @@ const FILTER_OPTIONS = [
   { value: "month", label: "This Month", icon: "calendar-month" },
 ];
 
+function getRouteParamValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
+function getOwnerInitials(ownerName) {
+  const parts = String(ownerName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const initials = parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+
+  return initials || "OW";
+}
+
 export default function ViewForms() {
+  const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const [allGroupedForms, setAllGroupedForms] = useState({});
@@ -36,6 +62,9 @@ export default function ViewForms() {
   const [selectedForm, setSelectedForm] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [autoOpenedFormId, setAutoOpenedFormId] = useState(0);
+  const highlightedFormId =
+    parseInt(getRouteParamValue(params?.form_id), 10) || 0;
 
   useEffect(() => {
     const loadForms = async () => {
@@ -141,6 +170,44 @@ export default function ViewForms() {
       Alert.alert("Error", "Failed to fetch form details.");
     }
   };
+
+  useEffect(() => {
+    if (!highlightedFormId || autoOpenedFormId === highlightedFormId) {
+      return;
+    }
+
+    let active = true;
+
+    const openHighlightedForm = async () => {
+      try {
+        const response = await fetch(apiUrl(apiRoutes.inspector.formDetails), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ form_id: highlightedFormId }),
+        });
+
+        const data = await response.json();
+
+        if (!active) {
+          return;
+        }
+
+        if (data.status === "success") {
+          setSelectedForm(data.form);
+          setModalVisible(true);
+          setAutoOpenedFormId(highlightedFormId);
+        }
+      } catch (error) {
+        console.error("Highlighted form open error:", error);
+      }
+    };
+
+    openHighlightedForm();
+
+    return () => {
+      active = false;
+    };
+  }, [autoOpenedFormId, highlightedFormId]);
 
   const groupedEntries = Object.entries(groupedForms);
   const totalForms =
@@ -261,6 +328,7 @@ export default function ViewForms() {
                       key={item.form_id}
                       item={item}
                       isWide={isWide}
+                      isHighlighted={Number(item.form_id) === highlightedFormId}
                       onView={viewFormDetails}
                     />
                   ))}
@@ -274,6 +342,7 @@ export default function ViewForms() {
                   key={item.form_id}
                   item={item}
                   isWide={isWide}
+                  isHighlighted={Number(item.form_id) === highlightedFormId}
                   onView={viewFormDetails}
                 />
               ))}
@@ -291,12 +360,39 @@ export default function ViewForms() {
   );
 }
 
-function FormCard({ item, onView, isWide }) {
+function FormCard({ item, onView, isWide, isHighlighted = false }) {
   return (
-    <View style={[styles.formCard, isWide && styles.formCardWide]}>
+    <View
+      style={[
+        styles.formCard,
+        isWide && styles.formCardWide,
+        isHighlighted && styles.formCardHighlighted,
+      ]}
+    >
       <View style={styles.formCardTop}>
-        <View style={styles.formBadge}>
-          <Text style={styles.formBadgeText}>Form #{item.form_id}</Text>
+        <View style={styles.ownerIdentity}>
+          {item.owner_profile_picture ? (
+            <Image
+              source={{ uri: item.owner_profile_picture }}
+              style={styles.ownerAvatar}
+            />
+          ) : (
+            <View style={styles.ownerAvatarFallback}>
+              <Text style={styles.ownerAvatarFallbackText}>
+                {getOwnerInitials(item.owner_name)}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.ownerTextWrap}>
+            <View style={styles.formBadge}>
+              <Text style={styles.formBadgeText}>Form #{item.form_id}</Text>
+            </View>
+            <Text style={styles.formCardTitle}>{item.owner_name}</Text>
+            <Text style={styles.formCardSubtitle}>
+              Eartag: {item.animal_unique_identifier}
+            </Text>
+          </View>
         </View>
         <MaterialCommunityIcons
           name="barn"
@@ -304,11 +400,6 @@ function FormCard({ item, onView, isWide }) {
           color={agriPalette.fieldDeep}
         />
       </View>
-
-      <Text style={styles.formCardTitle}>{item.owner_name}</Text>
-      <Text style={styles.formCardSubtitle}>
-        Eartag: {item.animal_unique_identifier}
-      </Text>
 
       <View style={styles.detailPillRow}>
         <DetailPill
@@ -546,6 +637,14 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 3,
   },
+  formCardHighlighted: {
+    borderColor: agriPalette.field,
+    borderWidth: 2,
+    shadowColor: agriPalette.fieldDeep,
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 5,
+  },
   formCardWide: {
     width: "48.8%",
   },
@@ -553,6 +652,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
+  },
+  ownerIdentity: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+  },
+  ownerAvatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: agriPalette.cream,
+  },
+  ownerAvatarFallback: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: agriPalette.fieldDeep,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  ownerAvatarFallbackText: {
+    color: agriPalette.white,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  ownerTextWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   formBadge: {
     borderRadius: 999,
@@ -566,7 +698,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   formCardTitle: {
-    marginTop: 16,
+    marginTop: 10,
     color: agriPalette.ink,
     fontSize: 22,
     fontWeight: "900",

@@ -8,7 +8,9 @@ import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-na
 import { TextInput } from "react-native-paper";
 import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
+import LogoutConfirmModal from "../../components/LogoutConfirmModal";
 import { apiRoutes, apiUrl } from "../../lib/api";
+import logoutSession from "../../lib/auth/logoutSession";
 import { agriPalette } from "../../constants/agriTheme";
 
 const INFO_API = apiUrl(apiRoutes.profile.info);
@@ -66,6 +68,8 @@ export default function SettingsScreen() {
   const [pickingImage, setPickingImage] = useState(false);
   const [profilePictureChanged, setProfilePictureChanged] = useState(false);
   const [role, setRole] = useState("user");
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -258,23 +262,33 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await AsyncStorage.clear();
-            router.replace("/");
-          } catch (error) {
-            console.error(error);
-            Alert.alert("Error", "Failed to log out.");
-          }
-        },
-      },
-    ]);
+  const handleLogout = () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLogoutModalVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    try {
+      setLoggingOut(true);
+      await logoutSession();
+      setLogoutModalVisible(false);
+      router.replace("/");
+    } catch (error) {
+      console.error(error);
+      Alert.alert(
+        "Logout failed",
+        "We could not finish signing you out. Please try again."
+      );
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   const handleSave = async () => {
@@ -401,6 +415,13 @@ export default function SettingsScreen() {
           : `Editing the ${settingsMeta.roleLabel} profile for ${profile.firstName || "your account"}.`
       }
     >
+      <LogoutConfirmModal
+        visible={logoutModalVisible}
+        loading={loggingOut}
+        onCancel={() => setLogoutModalVisible(false)}
+        onConfirm={confirmLogout}
+      />
+
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Account profile</Text>
         <Text style={styles.cardTitle}>Edit your account details</Text>

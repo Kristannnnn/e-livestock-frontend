@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -197,10 +198,21 @@ function normalizeRenewalStatus(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function getRouteParamValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
 export default function Stockyard() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const isCompact = width < 430;
+  const useStackedCardLayout = width < 780;
+  const useWideActionRow = width >= 860;
   const [forms, setForms] = useState([]);
   const [filteredForms, setFilteredForms] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -216,6 +228,9 @@ export default function Stockyard() {
   const [renewalPickerVisible, setRenewalPickerVisible] = useState(false);
   const [renewalTargetForm, setRenewalTargetForm] = useState(null);
   const [requestingRenewalId, setRequestingRenewalId] = useState(null);
+  const [expandedFormId, setExpandedFormId] = useState(null);
+  const highlightedFormId =
+    parseInt(getRouteParamValue(params?.form_id), 10) || 0;
 
   useEffect(() => {
     const loadSessionAndForms = async () => {
@@ -294,6 +309,30 @@ export default function Stockyard() {
 
     setFilteredForms(nextForms);
   }, [searchQuery, statusFilter, forms]);
+
+  useEffect(() => {
+    if (
+      expandedFormId !== null &&
+      !filteredForms.some((form) => form.form_id === expandedFormId)
+    ) {
+      setExpandedFormId(null);
+    }
+  }, [expandedFormId, filteredForms]);
+
+  useEffect(() => {
+    if (!highlightedFormId) {
+      return;
+    }
+
+    const hasTarget = forms.some(
+      (form) => Number(form.form_id) === highlightedFormId
+    );
+
+    if (hasTarget) {
+      setStatusFilter("All");
+      setExpandedFormId(highlightedFormId);
+    }
+  }, [forms, highlightedFormId]);
 
   const fetchForms = async (session = null) => {
     try {
@@ -441,6 +480,9 @@ export default function Stockyard() {
   const expiredCount = forms.filter((form) =>
     isQRExpired(form.qr_expiration, form.is_expired)
   ).length;
+  const toggleFormExpansion = (formId) => {
+    setExpandedFormId((current) => (current === formId ? null : formId));
+  };
 
   return (
     <DashboardShell
@@ -632,213 +674,379 @@ export default function Stockyard() {
                   : "sky";
                 const renewalButtonDisabled =
                   expired && (renewalPending || renewalCompleted);
+                const permitSubtitle = item.owner_name || "Owner not recorded";
+                const isExpanded = expandedFormId === item.form_id;
+                const isHighlighted = Number(item.form_id) === highlightedFormId;
 
                 return (
-                  <View key={item.form_id} style={styles.formCard}>
-                    <View
-                      style={[
-                        styles.cardHeader,
-                        isCompact && styles.cardHeaderCompact,
-                      ]}
-                    >
-                      <View style={styles.headerTextWrap}>
-                        <Text style={styles.formTitle}>
-                          {item.animal_species || "Livestock record"}
-                        </Text>
-                        <Text style={styles.formMeta}>
-                          Form #{item.form_id} - {item.owner_name || "Owner"}
-                        </Text>
-                      </View>
-
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          expired
-                            ? styles.statusBadgeExpired
-                            : styles.statusBadgeActive,
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name={
-                            expired
-                              ? "calendar-remove-outline"
-                              : "shield-check-outline"
-                          }
-                          size={15}
-                          color={
-                            expired ? agriPalette.redClay : agriPalette.fieldDeep
-                          }
-                        />
-                        <Text
-                          style={[
-                            styles.statusBadgeText,
-                            expired
-                              ? styles.statusBadgeTextExpired
-                              : styles.statusBadgeTextActive,
-                          ]}
-                        >
-                          {expired ? "Expired QR" : "Active QR"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.formBody,
-                        isCompact && styles.formBodyCompact,
+                  <View
+                    key={item.form_id}
+                    style={[
+                      styles.formCard,
+                      isHighlighted && styles.formCardHighlighted,
+                    ]}
+                  >
+                    <Pressable
+                      onPress={() => toggleFormExpansion(item.form_id)}
+                      style={({ pressed }) => [
+                        styles.summaryPressable,
+                        pressed && styles.summaryPressablePressed,
                       ]}
                     >
                       <View
                         style={[
-                          styles.detailColumn,
-                          isCompact && styles.detailColumnCompact,
+                          styles.cardHeader,
+                          useStackedCardLayout && styles.cardHeaderCompact,
                         ]}
                       >
-                        <View
-                          style={[
-                            styles.infoGrid,
-                            isCompact && styles.infoGridCompact,
-                          ]}
-                        >
-                          <View style={styles.infoBlock}>
-                            <Text style={styles.infoLabel}>Eartag</Text>
-                            <Text style={styles.infoValue}>
-                              {item.animal_unique_identifier || "Not provided"}
-                            </Text>
-                          </View>
-                          <View style={styles.infoBlock}>
-                            <Text style={styles.infoLabel}>Inspection date</Text>
-                            <Text style={styles.infoValue}>
-                              {formatDateLabel(item.date)}
-                            </Text>
-                          </View>
-                          <View style={[styles.infoBlock, styles.infoBlockFull]}>
-                            <Text style={styles.infoLabel}>Owner address</Text>
-                            <Text style={styles.infoValue}>
-                              {item.owner_address || "Not provided"}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.expiryPanel,
-                            expired && styles.expiryPanelExpired,
-                          ]}
-                        >
-                          <MaterialCommunityIcons
-                            name="clock-outline"
-                            size={16}
-                            color={
-                              expired ? agriPalette.redClay : agriPalette.fieldDeep
-                            }
-                          />
-                          <Text
-                            style={[
-                              styles.expiryPanelText,
-                              expired && styles.expiryPanelTextExpired,
-                            ]}
-                          >
-                            {qrMeta}
-                          </Text>
-                        </View>
-
-                        {showRenewalPanel ? (
+                        <View style={styles.headerIdentity}>
                           <View
                             style={[
-                              styles.renewalPanel,
-                              renewalCancelled && styles.renewalPanelCancelled,
+                              styles.recordIconWrap,
+                              expired
+                                ? styles.recordIconWrapExpired
+                                : styles.recordIconWrapActive,
+                            ]}
+                          >
+                            <MaterialCommunityIcons
+                              name="clipboard-text-outline"
+                              size={24}
+                              color={
+                                expired
+                                  ? agriPalette.redClay
+                                  : agriPalette.fieldDeep
+                              }
+                            />
+                          </View>
+
+                          <View style={styles.headerTextWrap}>
+                            <Text style={styles.formTitle} numberOfLines={1}>
+                              {item.animal_species || "Livestock record"}
+                            </Text>
+                            <Text style={styles.formMeta} numberOfLines={1}>
+                              Form #{item.form_id} - {permitSubtitle}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.headerControls}>
+                          <View
+                            style={[
+                              styles.statusBadge,
+                              expired
+                                ? styles.statusBadgeExpired
+                                : styles.statusBadgeActive,
                             ]}
                           >
                             <MaterialCommunityIcons
                               name={
-                                renewalPending
-                                  ? "calendar-clock-outline"
-                                  : renewalCompleted
-                                    ? "check-decagram-outline"
-                                    : "calendar-remove-outline"
+                                expired
+                                  ? "calendar-remove-outline"
+                                  : "shield-check-outline"
                               }
-                              size={16}
+                              size={15}
                               color={
-                                renewalPending
-                                  ? agriPalette.fieldDeep
-                                  : renewalCompleted
-                                    ? agriPalette.field
-                                    : agriPalette.redClay
+                                expired
+                                  ? agriPalette.redClay
+                                  : agriPalette.fieldDeep
                               }
                             />
                             <Text
                               style={[
-                                styles.renewalPanelText,
-                                renewalCancelled && styles.renewalPanelTextCancelled,
+                                styles.statusBadgeText,
+                                expired
+                                  ? styles.statusBadgeTextExpired
+                                  : styles.statusBadgeTextActive,
                               ]}
                             >
-                              {renewalPending
-                                ? `Renewal requested for ${formatDateLabel(
-                                    item.renewal_requested_date
-                                  )}`
-                                : renewalCompleted
-                                  ? item.renewed_form_id
-                                    ? `Renewal completed with form #${item.renewed_form_id}.`
-                                    : "Renewal already completed for this record."
-                                  : item.renewal_cancel_reason ||
-                                    "Renewal request cancelled."}
+                              {expired ? "Expired QR" : "Active QR"}
                             </Text>
                           </View>
-                        ) : null}
+
+                          <View style={styles.expandIconWrap}>
+                            <MaterialCommunityIcons
+                              name={
+                                isExpanded ? "chevron-up" : "chevron-down"
+                              }
+                              size={22}
+                              color={agriPalette.fieldDeep}
+                            />
+                          </View>
+                        </View>
                       </View>
 
-                      <View
-                        style={[
-                          styles.qrCard,
-                          isCompact && styles.qrCardCompact,
-                        ]}
-                      >
+                      <View style={styles.summaryMetrics}>
+                        <View style={styles.summaryChip}>
+                          <Text style={styles.summaryChipLabel}>Eartag</Text>
+                          <Text style={styles.summaryChipValue} numberOfLines={1}>
+                            {item.animal_unique_identifier || "Not provided"}
+                          </Text>
+                        </View>
+                        <View style={styles.summaryChip}>
+                          <Text style={styles.summaryChipLabel}>Date</Text>
+                          <Text style={styles.summaryChipValue} numberOfLines={1}>
+                            {formatDateLabel(item.date)}
+                          </Text>
+                        </View>
                         <View
                           style={[
-                            styles.qrSurface,
-                            isCompact && styles.qrSurfaceCompact,
+                            styles.summaryChip,
+                            styles.summaryChipWide,
+                            expired
+                              ? styles.summaryChipExpired
+                              : styles.summaryChipActive,
                           ]}
                         >
-                          <QRCode value={item.qr_code} size={isCompact ? 80 : 92} />
+                          <Text style={styles.summaryChipLabel}>Permit</Text>
+                          <Text
+                            style={[
+                              styles.summaryChipValue,
+                              expired && styles.summaryChipValueExpired,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {qrMeta}
+                          </Text>
                         </View>
-                        <Text
+                      </View>
+
+                      <Text style={styles.expandHint}>
+                        {isExpanded
+                          ? "Tap to collapse this permit"
+                          : "Tap to expand full permit details"}
+                      </Text>
+                    </Pressable>
+
+                    {isExpanded ? (
+                      <View style={styles.expandedContent}>
+                        <View
                           style={[
-                            styles.qrLabel,
-                            isCompact && styles.qrLabelCompact,
+                            styles.formBody,
+                            useStackedCardLayout && styles.formBodyCompact,
                           ]}
                         >
-                          Scan permit QR
-                        </Text>
-                      </View>
-                    </View>
+                          <View
+                            style={[
+                              styles.detailColumn,
+                              useStackedCardLayout && styles.detailColumnCompact,
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.infoGrid,
+                                isCompact && styles.infoGridCompact,
+                              ]}
+                            >
+                              <View style={styles.infoBlock}>
+                                <Text style={styles.infoLabel}>Eartag</Text>
+                                <Text style={styles.infoValue}>
+                                  {item.animal_unique_identifier || "Not provided"}
+                                </Text>
+                              </View>
+                              <View style={styles.infoBlock}>
+                                <Text style={styles.infoLabel}>Inspection date</Text>
+                                <Text style={styles.infoValue}>
+                                  {formatDateLabel(item.date)}
+                                </Text>
+                              </View>
+                              <View style={styles.infoBlock}>
+                                <Text style={styles.infoLabel}>Origin</Text>
+                                <Text style={styles.infoValue}>
+                                  {item.animal_origin || "Not provided"}
+                                </Text>
+                              </View>
+                              <View style={styles.infoBlock}>
+                                <Text style={styles.infoLabel}>Destination</Text>
+                                <Text style={styles.infoValue}>
+                                  {item.animal_destination || "Not provided"}
+                                </Text>
+                              </View>
+                            </View>
 
-                    <View style={styles.actionStack}>
-                      <AgriButton
-                        title="View details"
-                        subtitle="Open the full livestock record"
-                        icon="file-search-outline"
-                        variant="primary"
-                        compact
-                        onPress={() => openModal(item)}
-                      />
-                      <AgriButton
-                        title={renewalButtonTitle}
-                        subtitle={renewalButtonSubtitle}
-                        icon={renewalButtonIcon}
-                        variant={renewalButtonVariant}
-                        compact
-                        trailingIcon={expired ? false : "arrow-right"}
-                        disabled={
-                          renewalButtonDisabled ||
-                          requestingRenewalId === item.form_id
-                        }
-                        loading={requestingRenewalId === item.form_id}
-                        onPress={() =>
-                          expired ? openRenewalRequest(item) : goToAppointment(item)
-                        }
-                      />
-                    </View>
+                            <View style={styles.ownerPanel}>
+                              <View style={styles.ownerPanelHeader}>
+                                <MaterialCommunityIcons
+                                  name="map-marker-outline"
+                                  size={16}
+                                  color={agriPalette.fieldDeep}
+                                />
+                                <Text style={styles.ownerPanelLabel}>
+                                  Owner address
+                                </Text>
+                              </View>
+                              <Text style={styles.ownerPanelValue} numberOfLines={2}>
+                                {item.owner_address || "Not provided"}
+                              </Text>
+                            </View>
+
+                            <View
+                              style={[
+                                styles.expiryPanel,
+                                expired && styles.expiryPanelExpired,
+                              ]}
+                            >
+                              <MaterialCommunityIcons
+                                name="clock-outline"
+                                size={16}
+                                color={
+                                  expired
+                                    ? agriPalette.redClay
+                                    : agriPalette.fieldDeep
+                                }
+                              />
+                              <Text
+                                style={[
+                                  styles.expiryPanelText,
+                                  expired && styles.expiryPanelTextExpired,
+                                ]}
+                              >
+                                {qrMeta}
+                              </Text>
+                            </View>
+
+                            {showRenewalPanel ? (
+                              <View
+                                style={[
+                                  styles.renewalPanel,
+                                  renewalCancelled &&
+                                    styles.renewalPanelCancelled,
+                                ]}
+                              >
+                                <MaterialCommunityIcons
+                                  name={
+                                    renewalPending
+                                      ? "calendar-clock-outline"
+                                      : renewalCompleted
+                                      ? "check-decagram-outline"
+                                      : "calendar-remove-outline"
+                                  }
+                                  size={16}
+                                  color={
+                                    renewalPending
+                                      ? agriPalette.fieldDeep
+                                      : renewalCompleted
+                                      ? agriPalette.field
+                                      : agriPalette.redClay
+                                  }
+                                />
+                                <Text
+                                  style={[
+                                    styles.renewalPanelText,
+                                    renewalCancelled &&
+                                      styles.renewalPanelTextCancelled,
+                                  ]}
+                                >
+                                  {renewalPending
+                                    ? `Renewal requested for ${formatDateLabel(
+                                        item.renewal_requested_date
+                                      )}`
+                                    : renewalCompleted
+                                    ? item.renewed_form_id
+                                      ? `Renewal completed with form #${item.renewed_form_id}.`
+                                      : "Renewal already completed for this record."
+                                    : item.renewal_cancel_reason ||
+                                      "Renewal request cancelled."}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+
+                          <View
+                            style={[
+                              styles.qrCard,
+                              useStackedCardLayout && styles.qrCardStacked,
+                            ]}
+                          >
+                            {!useStackedCardLayout ? (
+                              <Text style={styles.qrEyebrow}>Permit QR</Text>
+                            ) : null}
+                            <View
+                              style={[
+                                styles.qrSurface,
+                                useStackedCardLayout && styles.qrSurfaceCompact,
+                              ]}
+                            >
+                              <QRCode
+                                value={item.qr_code}
+                                size={isCompact ? 80 : 92}
+                              />
+                            </View>
+                            <View
+                              style={[
+                                styles.qrCopyWrap,
+                                useStackedCardLayout &&
+                                  styles.qrCopyWrapStacked,
+                              ]}
+                            >
+                              {useStackedCardLayout ? (
+                                <Text style={styles.qrEyebrowStacked}>
+                                  Permit QR
+                                </Text>
+                              ) : null}
+                              <Text
+                                style={[
+                                  styles.qrLabel,
+                                  useStackedCardLayout && styles.qrLabelStacked,
+                                ]}
+                              >
+                                Scan permit QR
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.qrCaption,
+                                  useStackedCardLayout &&
+                                    styles.qrCaptionStacked,
+                                ]}
+                              >
+                                Present this code during on-site verification.
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.actionStack,
+                            useWideActionRow && styles.actionStackWide,
+                          ]}
+                        >
+                          <View
+                            style={useWideActionRow ? styles.actionCell : null}
+                          >
+                            <AgriButton
+                              title="View details"
+                              subtitle="Open the full livestock record"
+                              icon="file-search-outline"
+                              variant="primary"
+                              compact
+                              onPress={() => openModal(item)}
+                            />
+                          </View>
+                          <View
+                            style={useWideActionRow ? styles.actionCell : null}
+                          >
+                            <AgriButton
+                              title={renewalButtonTitle}
+                              subtitle={renewalButtonSubtitle}
+                              icon={renewalButtonIcon}
+                              variant={renewalButtonVariant}
+                              compact
+                              trailingIcon={expired ? false : "arrow-right"}
+                              disabled={
+                                renewalButtonDisabled ||
+                                requestingRenewalId === item.form_id
+                              }
+                              loading={requestingRenewalId === item.form_id}
+                              onPress={() =>
+                                expired
+                                  ? openRenewalRequest(item)
+                                  : goToAppointment(item)
+                              }
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 );
               })}
@@ -966,18 +1174,63 @@ const styles = StyleSheet.create({
     borderColor: agriPalette.border,
     paddingHorizontal: 18,
     paddingVertical: 18,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 2,
+  },
+  formCardHighlighted: {
+    borderColor: agriPalette.field,
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  summaryPressable: {
+    borderRadius: 22,
+  },
+  summaryPressablePressed: {
+    opacity: 0.92,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 10,
+    alignItems: "center",
+    gap: 14,
   },
   cardHeaderCompact: {
     flexDirection: "column",
+    alignItems: "stretch",
+  },
+  headerIdentity: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  recordIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  recordIconWrapActive: {
+    backgroundColor: "#EAF6E8",
+    borderColor: "#CDE1C6",
+  },
+  recordIconWrapExpired: {
+    backgroundColor: "#FCEAE4",
+    borderColor: "#EBC4B6",
   },
   headerTextWrap: {
     flex: 1,
+  },
+  headerControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   formTitle: {
     color: agriPalette.ink,
@@ -997,6 +1250,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 8,
+    alignSelf: "flex-start",
   },
   statusBadgeActive: {
     backgroundColor: "#EEF7E9",
@@ -1014,11 +1268,74 @@ const styles = StyleSheet.create({
   statusBadgeTextExpired: {
     color: agriPalette.redClay,
   },
+  expandIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EAF0E3",
+  },
+  summaryMetrics: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 14,
+  },
+  summaryChip: {
+    flexBasis: "31%",
+    flexGrow: 1,
+    minWidth: 118,
+    borderRadius: 18,
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  summaryChipWide: {
+    flexBasis: "100%",
+  },
+  summaryChipActive: {
+    backgroundColor: "#EEF7E9",
+    borderColor: "#D0E2CF",
+  },
+  summaryChipExpired: {
+    backgroundColor: "#FDEAE1",
+    borderColor: "#E6BEA9",
+  },
+  summaryChipLabel: {
+    color: agriPalette.inkSoft,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  summaryChipValue: {
+    marginTop: 6,
+    color: agriPalette.ink,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  summaryChipValueExpired: {
+    color: agriPalette.redClay,
+  },
+  expandHint: {
+    marginTop: 10,
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  expandedContent: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E1E7D7",
+  },
   formBody: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 14,
-    marginTop: 16,
   },
   formBodyCompact: {
     flexDirection: "column",
@@ -1026,6 +1343,7 @@ const styles = StyleSheet.create({
   detailColumn: {
     flex: 1,
     minWidth: 220,
+    gap: 12,
   },
   detailColumnCompact: {
     minWidth: 0,
@@ -1042,15 +1360,14 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     minWidth: 130,
+    minHeight: 88,
     borderRadius: 18,
     backgroundColor: agriPalette.surface,
     borderWidth: 1,
     borderColor: agriPalette.border,
     paddingHorizontal: 12,
     paddingVertical: 12,
-  },
-  infoBlockFull: {
-    flexBasis: "100%",
+    justifyContent: "space-between",
   },
   infoLabel: {
     color: agriPalette.inkSoft,
@@ -1066,24 +1383,53 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 21,
   },
+  ownerPanel: {
+    borderRadius: 20,
+    backgroundColor: "#FDFBF4",
+    borderWidth: 1,
+    borderColor: "#D9DFCC",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  ownerPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ownerPanelLabel: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  ownerPanelValue: {
+    marginTop: 10,
+    color: agriPalette.ink,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 21,
+  },
   expiryPanel: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
     gap: 8,
-    marginTop: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
+    paddingVertical: 12,
+    borderRadius: 20,
     backgroundColor: "#EEF7E9",
+    borderWidth: 1,
+    borderColor: "#D0E2CF",
   },
   expiryPanelExpired: {
     backgroundColor: "#F7E1D5",
+    borderColor: "#E6BEA9",
   },
   expiryPanelText: {
     color: agriPalette.fieldDeep,
     fontSize: 13,
     fontWeight: "800",
+    lineHeight: 19,
   },
   expiryPanelTextExpired: {
     color: agriPalette.redClay,
@@ -1091,16 +1437,17 @@ const styles = StyleSheet.create({
   renewalPanel: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
     gap: 8,
-    marginTop: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingVertical: 12,
+    borderRadius: 20,
     backgroundColor: "#FFF4D6",
+    borderWidth: 1,
+    borderColor: "#F0D48E",
   },
   renewalPanelCancelled: {
     backgroundColor: "#F7E1D5",
+    borderColor: "#E6BEA9",
   },
   renewalPanelText: {
     flex: 1,
@@ -1113,48 +1460,87 @@ const styles = StyleSheet.create({
     color: agriPalette.redClay,
   },
   qrCard: {
-    width: 138,
+    width: 170,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     borderRadius: 24,
     backgroundColor: agriPalette.surface,
     borderWidth: 1,
     borderColor: agriPalette.border,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
   },
-  qrCardCompact: {
+  qrCardStacked: {
     width: "100%",
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "flex-start",
-    gap: 14,
+    gap: 16,
     paddingHorizontal: 16,
   },
   qrSurface: {
-    padding: 10,
+    padding: 12,
     borderRadius: 18,
     backgroundColor: agriPalette.white,
   },
   qrSurfaceCompact: {
     padding: 12,
   },
+  qrEyebrow: {
+    color: agriPalette.field,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  qrEyebrowStacked: {
+    color: agriPalette.field,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  qrCopyWrap: {
+    marginTop: 12,
+    alignItems: "center",
+  },
+  qrCopyWrapStacked: {
+    flex: 1,
+    marginTop: 0,
+    alignItems: "flex-start",
+  },
   qrLabel: {
-    marginTop: 10,
     color: agriPalette.fieldDeep,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
     textAlign: "center",
   },
-  qrLabelCompact: {
-    marginTop: 0,
-    flex: 1,
+  qrLabelStacked: {
     fontSize: 13,
     lineHeight: 18,
+    textAlign: "left",
+  },
+  qrCaption: {
+    marginTop: 6,
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  qrCaptionStacked: {
     textAlign: "left",
   },
   actionStack: {
     gap: 10,
     marginTop: 16,
+  },
+  actionStackWide: {
+    flexDirection: "row",
+  },
+  actionCell: {
+    flex: 1,
   },
   emptyState: {
     alignItems: "center",

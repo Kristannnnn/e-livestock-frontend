@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import {
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,21 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import AgriButton from "./AgriButton";
 import { agriPalette } from "../constants/agriTheme";
+
+function getOwnerInitials(ownerName) {
+  const parts = String(ownerName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const initials = parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+
+  return initials || "OW";
+}
 
 export default function FormDetailsModal({ visible, onClose, form }) {
   const { width, height } = useWindowDimensions();
@@ -35,7 +51,7 @@ export default function FormDetailsModal({ visible, onClose, form }) {
   };
 
   const detailEntries = Object.entries(form).filter(
-    ([key]) => !["qr_code", "qr_expiration"].includes(key)
+    ([key]) => !["qr_code", "qr_expiration", "owner_profile_picture"].includes(key)
   );
 
   return (
@@ -66,13 +82,18 @@ export default function FormDetailsModal({ visible, onClose, form }) {
             colors={[agriPalette.fieldDeep, agriPalette.field]}
             style={styles.hero}
           >
-            <View style={styles.heroIconWrap}>
-              <MaterialCommunityIcons
-                name="file-document-outline"
-                size={24}
-                color={agriPalette.white}
+            {form.owner_profile_picture ? (
+              <Image
+                source={{ uri: form.owner_profile_picture }}
+                style={styles.heroAvatar}
               />
-            </View>
+            ) : (
+              <View style={styles.heroIconWrap}>
+                <Text style={styles.heroAvatarFallbackText}>
+                  {getOwnerInitials(form.owner_name)}
+                </Text>
+              </View>
+            )}
 
             <View style={styles.heroTextWrap}>
               <Text style={styles.heroEyebrow}>Submitted livestock form</Text>
@@ -80,8 +101,8 @@ export default function FormDetailsModal({ visible, onClose, form }) {
                 {form.form_id ? `Form #${form.form_id}` : "Form details"}
               </Text>
               <Text style={styles.heroSubtitle}>
-                Review the QR record, owner details, and inspection metadata in
-                one place.
+                Review the QR record, owner details, and inspection metadata for{" "}
+                {form.owner_name || "this owner"} in one place.
               </Text>
             </View>
           </LinearGradient>
@@ -211,6 +232,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.16)",
     marginRight: 14,
+  },
+  heroAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    marginRight: 14,
+    backgroundColor: agriPalette.cream,
+  },
+  heroAvatarFallbackText: {
+    color: agriPalette.white,
+    fontSize: 18,
+    fontWeight: "900",
   },
   heroTextWrap: {
     flex: 1,

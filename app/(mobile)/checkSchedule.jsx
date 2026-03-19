@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -178,6 +178,14 @@ function getProgressState(currentStatus, step) {
   return "idle";
 }
 
+function getRouteParamValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
 async function requestSchedules(ownerAccountId) {
   const [firstName, lastName] = await Promise.all([
     AsyncStorage.getItem("first_name"),
@@ -202,6 +210,7 @@ async function requestSchedules(ownerAccountId) {
 
 export default function ScheduleScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const isWide = width >= 920;
   const [schedules, setSchedules] = useState([]);
@@ -210,6 +219,10 @@ export default function ScheduleScreen() {
   const [lastName, setLastName] = useState("");
   const [accountId, setAccountId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
+  const highlightedScheduleId =
+    parseInt(getRouteParamValue(params?.schedule_id), 10) || 0;
+  const highlightedFormId =
+    parseInt(getRouteParamValue(params?.form_id), 10) || 0;
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -272,6 +285,28 @@ export default function ScheduleScreen() {
 
     loadSchedules();
   }, [accountId]);
+
+  useEffect(() => {
+    if (!highlightedScheduleId && !highlightedFormId) {
+      return;
+    }
+
+    const matchedSchedule = schedules.find((item) => {
+      if (highlightedScheduleId && Number(item.schedule_id) === highlightedScheduleId) {
+        return true;
+      }
+
+      if (highlightedFormId && Number(item.form_id) === highlightedFormId) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (matchedSchedule?.status && statusFilter !== matchedSchedule.status) {
+      setStatusFilter(matchedSchedule.status);
+    }
+  }, [highlightedFormId, highlightedScheduleId, schedules, statusFilter]);
 
   const fetchSchedules = async () => {
     if (!accountId) {
@@ -485,12 +520,19 @@ export default function ScheduleScreen() {
               const colors = statusStyles[item.status] || statusStyles.Pending;
               const canCancel = item.status !== "Cancelled" && item.status !== "Done";
               const badge = getDateBadge(item.date);
+              const isHighlighted =
+                (highlightedScheduleId &&
+                  Number(item.schedule_id) === highlightedScheduleId) ||
+                (!highlightedScheduleId &&
+                  highlightedFormId &&
+                  Number(item.form_id) === highlightedFormId);
 
               return (
                 <View
                   key={item.schedule_id}
                   style={[
                     styles.scheduleCard,
+                    isHighlighted && styles.scheduleCardHighlighted,
                     { backgroundColor: colors.cardBackground, borderColor: colors.borderColor },
                   ]}
                 >
@@ -651,6 +693,15 @@ const styles = StyleSheet.create({
   loadingState: { marginVertical: 40 },
   scheduleStack: { gap: 14, marginTop: 18 },
   scheduleCard: { borderRadius: 26, borderWidth: 1, padding: 16 },
+  scheduleCardHighlighted: {
+    borderWidth: 2,
+    borderColor: agriPalette.field,
+    shadowColor: agriPalette.fieldDeep,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
   scheduleFrame: { flexDirection: "row", gap: 14 },
   dateBadge: {
     width: 78,

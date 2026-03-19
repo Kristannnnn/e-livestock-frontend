@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -34,11 +34,22 @@ function formatDateLabel(dateValue) {
   });
 }
 
+function getRouteParamValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
 export default function RenewalRequestsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const highlightedFormId =
+    parseInt(getRouteParamValue(params?.form_id), 10) || 0;
 
   const loadRequests = async (isRefresh = false) => {
     try {
@@ -140,7 +151,11 @@ export default function RenewalRequestsScreen() {
             {requests.map((request) => (
               <View
                 key={request.renewal_request_id}
-                style={styles.requestCard}
+                style={[
+                  styles.requestCard,
+                  Number(request.form_id) === highlightedFormId &&
+                    styles.requestCardHighlighted,
+                ]}
               >
                 <View style={styles.requestHeader}>
                   <View style={styles.requestTitleWrap}>
@@ -289,6 +304,15 @@ const styles = StyleSheet.create({
     borderColor: agriPalette.border,
     paddingHorizontal: 18,
     paddingVertical: 18,
+  },
+  requestCardHighlighted: {
+    borderColor: agriPalette.field,
+    borderWidth: 2,
+    shadowColor: agriPalette.fieldDeep,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
   },
   requestHeader: {
     flexDirection: "row",

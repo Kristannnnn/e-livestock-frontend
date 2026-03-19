@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AgriButton from "../../components/AgriButton";
@@ -231,10 +232,49 @@ function filterNotifications(items, activeFilter) {
   return items.filter((item) => item.category === activeFilter);
 }
 
-function formatNotificationDate(dateValue) {
-  const parsed = new Date(dateValue);
+function parseNotificationDateValue(dateValue) {
+  const raw = String(dateValue || "").trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  const sqlDateMatch = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (sqlDateMatch) {
+    const [, year, month, day, hour, minute, second = "0"] = sqlDateMatch;
+    const parsedUtc = new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second)
+      )
+    );
+
+    if (!Number.isNaN(parsedUtc.getTime())) {
+      return parsedUtc;
+    }
+  }
+
+  const normalized = raw.includes(" ") ? raw.replace(" ", "T") : raw;
+  const parsed = new Date(normalized);
 
   if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function formatNotificationDate(dateValue) {
+  const parsed = parseNotificationDateValue(dateValue);
+
+  if (!parsed) {
     return "Date unavailable";
   }
 
@@ -242,9 +282,9 @@ function formatNotificationDate(dateValue) {
 }
 
 function formatRelativeTime(dateValue) {
-  const parsed = new Date(dateValue);
+  const parsed = parseNotificationDateValue(dateValue);
 
-  if (Number.isNaN(parsed.getTime())) {
+  if (!parsed) {
     return "Unknown time";
   }
 
@@ -272,6 +312,89 @@ function formatRelativeTime(dateValue) {
 function getNotificationVisual(type) {
   const normalizedType = normalizeNotificationType(type);
   return NOTIFICATION_VISUALS[normalizedType] || NOTIFICATION_VISUALS.general;
+}
+
+function getDashboardRoute(role) {
+  if (role === "livestockInspector") {
+    return "/livestockInspectorDashboard";
+  }
+
+  if (role === "AntemortemInspector") {
+    return "/antemortemDashboard";
+  }
+
+  return "/ownerDashboard";
+}
+
+function buildNotificationRouteParams(item) {
+  const params = {};
+  const relatedFormId = Number(item?.related_form_id) || 0;
+  const relatedScheduleId = Number(item?.related_schedule_id) || 0;
+
+  if (relatedFormId > 0) {
+    params.form_id = String(relatedFormId);
+  }
+
+  if (relatedScheduleId > 0) {
+    params.schedule_id = String(relatedScheduleId);
+  }
+
+  return Object.keys(params).length ? params : undefined;
+}
+
+function buildNotificationDestination(item, role) {
+  const type = normalizeNotificationType(item?.type);
+  const params = buildNotificationRouteParams(item);
+
+  if (type === "renewal_request") {
+    if (role === "livestockInspector") {
+      return { pathname: "/renewalRequests", params };
+    }
+
+    return { pathname: "/stockyard", params };
+  }
+
+  if (type === "renewal_completed") {
+    if (role === "livestockInspector") {
+      return { pathname: "/viewForms", params };
+    }
+
+    return { pathname: "/stockyard", params };
+  }
+
+  if (type === "renewal_cancelled") {
+    if (role === "livestockInspector") {
+      return { pathname: "/renewalRequests", params };
+    }
+
+    return { pathname: "/stockyard", params };
+  }
+
+  if (["schedule_created", "schedule_status", "schedule_cancelled"].includes(type)) {
+    if (role === "AntemortemInspector") {
+      return { pathname: "/antemortemSchedules", params };
+    }
+
+    return { pathname: "/checkSchedule", params };
+  }
+
+  if (type === "form_batch") {
+    if (role === "livestockInspector") {
+      return { pathname: "/viewForms", params };
+    }
+
+    return { pathname: "/stockyard", params };
+  }
+
+  if (["account_updated", "password_updated"].includes(type)) {
+    return { pathname: "/settings" };
+  }
+
+  if (type === "login_success") {
+    return { pathname: getDashboardRoute(role) };
+  }
+
+  return { pathname: getDashboardRoute(role) };
 }
 
 function buildEmptyState(activeFilter) {
@@ -334,7 +457,9 @@ async function requestNotifications(accountId) {
 }
 
 export default function NotificationsScreen() {
+  const router = useRouter();
   const [accountId, setAccountId] = useState(null);
+  const [role, setRole] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [categoryCounts, setCategoryCounts] = useState(CATEGORY_COUNTS_TEMPLATE);
@@ -350,11 +475,35 @@ export default function NotificationsScreen() {
     setUnreadCount(Number(data.unread_count) || nextCounts.unread);
   };
 
+  const applyLocalReadState = (notificationId = null) => {
+    setNotifications((current) => {
+      const nextNotifications = current.map((item) => {
+        if (notificationId && item.notification_id !== notificationId) {
+          return item;
+        }
+
+        return item.is_read ? item : { ...item, is_read: 1 };
+      });
+
+      const nextCounts = deriveCategoryCounts(nextNotifications);
+      setCategoryCounts(nextCounts);
+      setUnreadCount(nextCounts.unread);
+
+      return nextNotifications;
+    });
+  };
+
   useEffect(() => {
     const loadNotifications = async () => {
       try {
-        const storedId = await AsyncStorage.getItem("account_id");
+        const [storedId, storedRole, storedUser] = await Promise.all([
+          AsyncStorage.getItem("account_id"),
+          AsyncStorage.getItem("role"),
+          AsyncStorage.getItem("user"),
+        ]);
         const parsedId = parseInt(storedId, 10);
+        const parsedUser = storedUser ? JSON.parse(storedUser) : {};
+        const resolvedRole = storedRole || parsedUser.account_type || "";
 
         if (!parsedId) {
           Alert.alert("Error", "User not logged in.");
@@ -362,6 +511,7 @@ export default function NotificationsScreen() {
         }
 
         setAccountId(parsedId);
+        setRole(resolvedRole);
         const data = await requestNotifications(parsedId);
 
         if (data.status === "success") {
@@ -394,7 +544,9 @@ export default function NotificationsScreen() {
     }
   };
 
-  const markRead = async (notificationId = null) => {
+  const markRead = async (notificationId = null, options = {}) => {
+    const { refreshAfter = true, suppressAlert = false } = options;
+
     if (!accountId) {
       return;
     }
@@ -413,13 +565,36 @@ export default function NotificationsScreen() {
       const data = await parseJsonResponse(response, "Invalid update response.");
 
       if (data.status === "success") {
-        await refreshNotifications(accountId);
+        if (refreshAfter) {
+          await refreshNotifications(accountId);
+        } else {
+          applyLocalReadState(notificationId);
+        }
       } else {
-        Alert.alert("Error", data.message || "Failed to update notifications.");
+        if (!suppressAlert) {
+          Alert.alert("Error", data.message || "Failed to update notifications.");
+        }
       }
     } catch (error) {
       console.error("Notification update error:", error);
-      Alert.alert("Error", "Failed to update notifications.");
+      if (!suppressAlert) {
+        Alert.alert("Error", "Failed to update notifications.");
+      }
+    }
+  };
+
+  const openNotification = async (item) => {
+    const destination = buildNotificationDestination(item, role);
+
+    if (!item?.is_read && item?.notification_id) {
+      await markRead(item.notification_id, {
+        refreshAfter: false,
+        suppressAlert: true,
+      });
+    }
+
+    if (destination?.pathname) {
+      router.push(destination);
     }
   };
 
@@ -466,7 +641,13 @@ export default function NotificationsScreen() {
       </View>
 
       {latestNotification ? (
-        <View style={styles.highlightCard}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.highlightCard,
+            pressed && styles.cardPressed,
+          ]}
+          onPress={() => openNotification(latestNotification)}
+        >
           <View
             style={[
               styles.highlightIconWrap,
@@ -496,7 +677,7 @@ export default function NotificationsScreen() {
               {formatRelativeTime(latestNotification.created_at)}
             </Text>
           </View>
-        </View>
+        </Pressable>
       ) : null}
 
       <View style={styles.filterRail}>
@@ -550,12 +731,12 @@ export default function NotificationsScreen() {
           return (
             <Pressable
               key={item.notification_id}
-              style={[styles.card, item.is_read ? styles.cardRead : styles.cardUnread]}
-              onPress={() => {
-                if (!item.is_read) {
-                  markRead(item.notification_id);
-                }
-              }}
+              style={({ pressed }) => [
+                styles.card,
+                item.is_read ? styles.cardRead : styles.cardUnread,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={() => openNotification(item)}
             >
               <View style={styles.cardTopRow}>
                 <View style={styles.cardLead}>
@@ -753,6 +934,10 @@ const styles = StyleSheet.create({
   },
   cardRead: {
     opacity: 0.84,
+  },
+  cardPressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.995 }],
   },
   header: {
     flexDirection: "row",

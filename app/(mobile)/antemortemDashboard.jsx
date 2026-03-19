@@ -1,16 +1,19 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
+import LogoutConfirmModal from "../../components/LogoutConfirmModal";
 import StatCard from "../../components/StatCard";
 import { apiRoutes, apiUrl } from "../../lib/api";
+import logoutSession from "../../lib/auth/logoutSession";
 import { agriPalette } from "../../constants/agriTheme";
 
 export default function DashboardScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [analytics, setAnalytics] = useState({
     slaughtered: 0,
     scheduled: 0,
@@ -51,17 +54,33 @@ export default function DashboardScreen() {
     fetchAnalytics();
   }, []);
 
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        onPress: async () => {
-          await AsyncStorage.clear();
-          router.replace("/");
-        },
-      },
-    ]);
+  const handleLogout = () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLogoutModalVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    try {
+      setLoggingOut(true);
+      await logoutSession();
+      setLogoutModalVisible(false);
+      router.replace("/");
+    } catch (error) {
+      console.error(error);
+      Alert.alert(
+        "Logout failed",
+        "We could not finish signing you out. Please try again."
+      );
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
@@ -76,6 +95,13 @@ export default function DashboardScreen() {
           : `${analytics.scheduled} scheduled and ${analytics.ongoing} ongoing inspections right now.`
       }
     >
+      <LogoutConfirmModal
+        visible={logoutModalVisible}
+        loading={loggingOut}
+        onCancel={() => setLogoutModalVisible(false)}
+        onConfirm={confirmLogout}
+      />
+
       <View style={styles.statsGrid}>
         <StatCard
           label="Slaughtered"
