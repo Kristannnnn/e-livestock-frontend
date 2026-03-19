@@ -2,9 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -69,6 +70,7 @@ function LoginScreen() {
   const params = useLocalSearchParams();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
+  const scrollViewRef = useRef(null);
   const isWide = width >= 920;
   const isCompact = width < 560;
   const [username, setUsername] = useState("");
@@ -76,10 +78,51 @@ function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [secureText, setSecureText] = useState(true);
   const [notice, setNotice] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const keyboardVisible = keyboardHeight > 0;
 
   useEffect(() => {
     setNotice(buildAuthNotice(getParamValue(params.notice)));
   }, [params.notice]);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const handleKeyboardShow = (event) => {
+      const nextKeyboardHeight = event?.endCoordinates?.height || 0;
+      setKeyboardHeight(nextKeyboardHeight);
+    };
+
+    const handleKeyboardHide = () => {
+      setKeyboardHeight(0);
+    };
+
+    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow);
+    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide);
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const focusFormField = (offset = 280) => {
+    if (isWide) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: offset,
+          animated: true,
+        });
+      }, Platform.OS === "ios" ? 80 : 120);
+    });
+  };
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -193,12 +236,19 @@ function LoginScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 12}
       >
         <ScrollView
+          ref={scrollViewRef}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            keyboardVisible && styles.scrollContentKeyboardOpen,
+            { paddingBottom: keyboardVisible ? keyboardHeight + 36 : 28 },
+          ]}
         >
           <View
             style={[
@@ -283,6 +333,7 @@ function LoginScreen() {
                 mode="outlined"
                 value={username}
                 onChangeText={setUsername}
+                onFocus={() => focusFormField(290)}
                 style={styles.input}
                 left={<TextInput.Icon icon="account" />}
                 outlineColor={colors.outline}
@@ -295,6 +346,7 @@ function LoginScreen() {
                 secureTextEntry={secureText}
                 value={password}
                 onChangeText={setPassword}
+                onFocus={() => focusFormField(340)}
                 style={styles.input}
                 left={<TextInput.Icon icon="lock" />}
                 right={
@@ -361,6 +413,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
+    paddingTop: 26,
+  },
+  scrollContentKeyboardOpen: {
+    justifyContent: "flex-start",
   },
   glowTopLeft: {
     position: "absolute",

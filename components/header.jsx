@@ -12,7 +12,7 @@ export default function AppHeader() {
         style={styles.container}
       >
         <Image
-          source={require("../assets/favicon.png")}
+          source={require("../assets/icon.png")}
           style={styles.logo}
           resizeMode="contain"
         />
