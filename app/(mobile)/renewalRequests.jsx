@@ -93,7 +93,7 @@ export default function RenewalRequestsScreen() {
     <DashboardShell
       eyebrow="Renewal queue"
       title="Scheduled renewals"
-      subtitle="Owners pick their preferred renewal day here. Open a request to reuse the old form details, edit them, and submit a renewed record."
+      subtitle="Use this queue to open owner-scheduled renewals, reuse the old record, and file the updated form for the requested day."
       summary={
         loading
           ? "Loading the latest renewal queue..."
@@ -108,23 +108,23 @@ export default function RenewalRequestsScreen() {
     >
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Quick tools</Text>
-        <Text style={styles.cardTitle}>Refresh or return</Text>
+        <Text style={styles.cardTitle}>Keep the renewal queue in sync</Text>
         <Text style={styles.cardCopy}>
-          Keep the renewal queue current, then open any request to reuse the
-          original livestock form details.
+          Refresh before reviewing requests, or return to the dashboard once the
+          renewal list is up to date.
         </Text>
 
         <View style={styles.actionStack}>
           <AgriButton
             title="Refresh renewal queue"
-            subtitle="Check for the latest owner requests"
+            subtitle="Reload the newest owner renewal bookings"
             icon="refresh"
             variant="sky"
             onPress={() => loadRequests(true)}
           />
           <AgriButton
             title="Back to dashboard"
-            subtitle="Return to the livestock inspector dashboard"
+            subtitle="Return to the inspector dashboard workspace"
             icon="arrow-left"
             variant="secondary"
             onPress={() => router.replace("/livestockInspectorDashboard")}
@@ -134,10 +134,11 @@ export default function RenewalRequestsScreen() {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Pending requests</Text>
-        <Text style={styles.cardTitle}>Renewal schedule board</Text>
+        <Text style={styles.cardTitle}>Open the renewal request that needs work</Text>
         <Text style={styles.cardCopy}>
-          Each request below came from an expired owner permit. Open the form to
-          prefill the original details, edit them, and file the renewed record.
+          Each request below shows which expired permit needs to be reused, when
+          the owner wants it renewed, and what details you should review before
+          submitting.
         </Text>
 
         {loading ? (
@@ -217,7 +218,7 @@ export default function RenewalRequestsScreen() {
                 <View style={styles.actionStack}>
                   <AgriButton
                     title="Open renewal form"
-                    subtitle="Reuse this livestock record in the form editor"
+                    subtitle="Reuse the saved record and edit only what changed"
                     icon="file-replace-outline"
                     variant="primary"
                     onPress={() =>

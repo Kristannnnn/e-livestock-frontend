@@ -306,11 +306,11 @@ const InspectorDashboard = () => {
         <View style={styles.workbenchHeader}>
           <View style={styles.workbenchHeaderCopy}>
             <Text style={styles.cardEyebrow}>Inspector workbench</Text>
-            <Text style={styles.cardTitle}>Open the next task faster</Text>
+            <Text style={styles.cardTitle}>Choose the field task to continue</Text>
             <Text style={styles.cardCopy}>
-              Your most-used actions now stay near the top so you can create a
-              form or open the renewal queue without scrolling through the full
-              dashboard first.
+              This section is your guided starting point for inspection work:
+              create a new form, process pending renewals, or reopen submitted
+              records without scrolling through the rest of the dashboard.
             </Text>
           </View>
 
@@ -342,9 +342,10 @@ const InspectorDashboard = () => {
               />
             </View>
             <View style={styles.primaryWorkbenchCopy}>
-              <Text style={styles.primaryWorkbenchTitle}>Create form</Text>
+              <Text style={styles.primaryWorkbenchTitle}>Create a new form</Text>
               <Text style={styles.primaryWorkbenchText}>
-                Start a livestock inspection record right away from the dashboard.
+                Start recording a fresh livestock inspection and move straight
+                into permit preparation from here.
               </Text>
             </View>
             <MaterialCommunityIcons
@@ -376,9 +377,10 @@ const InspectorDashboard = () => {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.secondaryWorkbenchTitle}>Renewals</Text>
+              <Text style={styles.secondaryWorkbenchTitle}>Process renewals</Text>
               <Text style={styles.secondaryWorkbenchText}>
-                Review owner renewal requests and reuse existing forms faster.
+                Review scheduled renewal requests and reopen existing form data
+                for quick editing.
               </Text>
             </Pressable>
 
@@ -403,9 +405,10 @@ const InspectorDashboard = () => {
                   color={agriPalette.field}
                 />
               </View>
-              <Text style={styles.secondaryWorkbenchTitle}>Submitted forms</Text>
+              <Text style={styles.secondaryWorkbenchTitle}>Review submitted forms</Text>
               <Text style={styles.secondaryWorkbenchText}>
-                Jump to your filed records without leaving the first screen.
+                Open your previously filed records to verify details, QR
+                validity, and recent activity.
               </Text>
             </Pressable>
           </View>
@@ -636,16 +639,17 @@ const InspectorDashboard = () => {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Quick actions</Text>
-        <Text style={styles.cardTitle}>Open your next workflow</Text>
+        <Text style={styles.cardTitle}>Handle account-side tasks</Text>
         <Text style={styles.cardCopy}>
-          The main inspector shortcuts are now pinned near the top. These extra
-          actions stay here for profile updates and session control.
+          Keep these support actions nearby for profile maintenance and secure
+          sign-out after your inspection work is finished.
         </Text>
 
         <View style={styles.actionStack}>
           <AgriButton
-            title="Settings"
-            subtitle="Update your livestock inspector profile"
+            title="Update inspector settings"
+            subtitle="Edit your account information so submitted forms and notifications stay linked correctly."
+            icon="cog-outline"
             variant="sky"
             onPress={() => router.push("/settings")}
           />

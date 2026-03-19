@@ -156,36 +156,38 @@ export default function DashboardScreen() {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Action center</Text>
-        <Text style={styles.cardTitle}>Open the next inspection task</Text>
+        <Text style={styles.cardTitle}>Continue the antemortem workflow</Text>
         <Text style={styles.cardCopy}>
-          Use the updated action buttons to review schedules, launch QR
-          scanning, or end the session with a consistent modern look.
+          These shortcuts guide the next field step: open the schedule board,
+          verify a QR on-site, adjust your profile, or sign out when the round
+          is complete.
         </Text>
 
         <View style={styles.actionStack}>
           <AgriButton
-            title="Review schedules"
-            subtitle="Manage the next round of livestock appointments"
+            title="Open schedule board"
+            subtitle="Review pending, accepted, ongoing, and completed visits before heading to the field."
             icon="calendar-month-outline"
             variant="primary"
             onPress={() => router.push("/antemortemSchedules")}
           />
           <AgriButton
-            title="Scan QR records"
-            subtitle="Open QR verification for on-site inspection"
+            title="Verify permit QR"
+            subtitle="Launch the scanner to confirm a livestock record before inspection starts on-site."
             icon="qrcode-scan"
             variant="secondary"
             onPress={() => router.push("/antemortemScanQRcode")}
           />
           <AgriButton
-            title="Settings"
-            subtitle="Update your antemortem inspector profile"
+            title="Manage profile settings"
+            subtitle="Update your antemortem account details so schedule activity and notifications stay accurate."
+            icon="cog-outline"
             variant="sky"
             onPress={() => router.push("/settings")}
           />
           <AgriButton
-            title="Logout"
-            subtitle="Close this antemortem session securely"
+            title="End this field session"
+            subtitle="Sign out securely after reviewing schedules, scans, and inspection progress."
             icon="logout"
             variant="danger"
             onPress={handleLogout}

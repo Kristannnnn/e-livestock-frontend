@@ -494,7 +494,7 @@ export default function Stockyard() {
           ? `${lastName}'s livestock permits`
           : "My stockyard"
       }
-      subtitle="Review your submitted livestock records, scan QR validity quickly, and jump into scheduling from a cleaner stockyard layout."
+      subtitle="Use the stockyard to review your submitted permits, check QR validity, and open the next booking or renewal step from one place."
       summary={
         loading
           ? "Refreshing your stockyard forms..."
@@ -534,10 +534,10 @@ export default function Stockyard() {
 
         <View style={styles.surfaceCard}>
           <Text style={styles.cardEyebrow}>Search and filter</Text>
-          <Text style={styles.cardTitle}>Find the right permit faster</Text>
+          <Text style={styles.cardTitle}>Choose the permit you need to work on</Text>
           <Text style={styles.cardCopy}>
             Search by owner, species, ear tag, or form number, then narrow the
-            list to active or expired QR permits.
+            list to active or expired permits before opening the next action.
           </Text>
 
           <View style={styles.searchWrap}>
@@ -585,7 +585,7 @@ export default function Stockyard() {
           <View style={styles.refreshButtonWrap}>
             <AgriButton
               title="Refresh permits"
-              subtitle="Pull the latest stockyard records"
+              subtitle="Reload the newest permit records in your stockyard"
               icon="refresh"
               variant="sky"
               compact
@@ -597,10 +597,10 @@ export default function Stockyard() {
 
         <View style={styles.surfaceCard}>
           <Text style={styles.cardEyebrow}>Permit list</Text>
-          <Text style={styles.cardTitle}>Your submitted livestock records</Text>
+          <Text style={styles.cardTitle}>Review the permits linked to your account</Text>
           <Text style={styles.cardCopy}>
-            Open full details, inspect QR validity at a glance, and create a
-            schedule directly from each eligible record.
+            Open full details, inspect QR validity at a glance, and move
+            directly into scheduling or renewal from each eligible record.
           </Text>
 
           {!!loadError && !loading && (

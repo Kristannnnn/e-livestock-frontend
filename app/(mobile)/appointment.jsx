@@ -392,7 +392,7 @@ export default function Appointment() {
     <DashboardShell
       eyebrow="Appointment booking"
       title={ownerName ? `Book a visit for ${ownerName}` : "Schedule an inspection visit"}
-      subtitle="Review the permit, shift the day, and reserve an inspection window from a booking board that feels fuller and easier to scan."
+      subtitle="Use this booking board to confirm permit details, choose a valid day, and reserve an inspection window before the QR expires."
       summary={
         formId
           ? `Form #${formId} is linked and ready for scheduling.`
@@ -429,11 +429,11 @@ export default function Appointment() {
         <View style={[styles.heroRow, isWide && styles.heroRowWide]}>
           <View style={styles.heroCopy}>
             <Text style={styles.cardEyebrow}>Permit overview</Text>
-            <Text style={styles.cardTitle}>Line up the visit before the QR expires</Text>
+            <Text style={styles.cardTitle}>Confirm the permit before you book</Text>
             <Text style={styles.cardCopy}>
-              The booking stays attached to the selected livestock permit, so the
-              owner, location, and eartag remain visible while you choose the best
-              inspection window.
+              This panel keeps the owner, eartag, location, and permit window
+              visible so you know exactly which livestock record the appointment
+              belongs to.
             </Text>
 
             <View style={[styles.infoGrid, isWide && styles.infoGridWide]}>
@@ -462,7 +462,7 @@ export default function Appointment() {
             <View style={styles.actionRow}>
               <AgriButton
                 title="Pick another day"
-                subtitle={formatDateLabel(date)}
+                subtitle={`Open the calendar for ${formatDateLabel(date)}`}
                 icon="calendar-edit-outline"
                 variant="secondary"
                 compact
@@ -472,7 +472,7 @@ export default function Appointment() {
               />
               <AgriButton
                 title="Refresh slots"
-                subtitle="Check this day again"
+                subtitle="Reload available times for this date"
                 icon="refresh"
                 variant="sky"
                 compact
@@ -515,10 +515,10 @@ export default function Appointment() {
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderCopy}>
             <Text style={styles.cardEyebrow}>Available slots</Text>
-            <Text style={styles.cardTitle}>Reserve a stronger visit window</Text>
+            <Text style={styles.cardTitle}>Choose the booking window that fits</Text>
             <Text style={styles.cardCopy}>
-              Each slot keeps the time, day, and permit context visible so the
-              booking no longer feels empty before you confirm.
+              Review each open slot with the day and time already attached, then
+              tap one to continue to confirmation.
             </Text>
           </View>
           <View style={styles.queueBadge}>
@@ -682,7 +682,7 @@ export default function Appointment() {
             <View style={styles.modalActions}>
               <AgriButton
                 title="Confirm appointment"
-                subtitle="Create the schedule now"
+                subtitle="Save this visit to the schedule board"
                 icon="check-circle-outline"
                 variant="primary"
                 compact
@@ -693,7 +693,7 @@ export default function Appointment() {
               />
               <AgriButton
                 title="Keep browsing"
-                subtitle="Return to the slot board"
+                subtitle="Go back and compare more available slots"
                 icon="arrow-left"
                 variant="muted"
                 compact

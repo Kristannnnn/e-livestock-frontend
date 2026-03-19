@@ -677,13 +677,13 @@ export default function NotificationsScreen() {
     <DashboardShell
       eyebrow="Notification center"
       title="Your alerts"
-      subtitle="Track schedule updates, form activity, and other account events in one place."
+      subtitle="Use this inbox to review schedule updates, form activity, renewals, and other account events that may need action."
       summary={summary}
     >
       <View style={styles.actions}>
         <AgriButton
           title="Refresh"
-          subtitle="Check for the latest account activity"
+          subtitle="Reload the newest alerts for this account"
           icon="refresh"
           compact
           onPress={() => refreshNotifications(accountId)}
@@ -691,7 +691,7 @@ export default function NotificationsScreen() {
         />
         <AgriButton
           title="Mark all read"
-          subtitle="Clear all unread notifications"
+          subtitle="Clear unread alerts after you finish reviewing them"
           icon="check-all"
           variant="secondary"
           compact

@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -128,6 +128,66 @@ function formatScheduleWindow(schedule) {
   return dateLabel;
 }
 
+function getParamValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
+function formatScheduleSubject(schedule) {
+  const ownerLabel = String(schedule?.owner_name || "").trim();
+  const eartagLabel = String(schedule?.eartag_number || "").trim();
+
+  if (ownerLabel && eartagLabel) {
+    return `${ownerLabel} • Eartag ${eartagLabel}`;
+  }
+
+  if (ownerLabel) {
+    return ownerLabel;
+  }
+
+  if (eartagLabel) {
+    return `Eartag ${eartagLabel}`;
+  }
+
+  return "This livestock visit";
+}
+
+function buildStatusSuccessFeedback(schedule, newStatus) {
+  const subject = formatScheduleSubject(schedule);
+  const windowLabel = formatScheduleWindow(schedule);
+
+  switch (newStatus) {
+    case "accepted":
+      return {
+        title: "Request accepted",
+        message: `${subject} is now confirmed for ${windowLabel}. It has been moved into the accepted queue.`,
+      };
+    case "ongoing":
+      return {
+        title: "Inspection started",
+        message: `${subject} is now marked ongoing for ${windowLabel}. You can continue it from the ongoing queue anytime.`,
+      };
+    case "done":
+      return {
+        title: "Inspection completed",
+        message: `${subject} has been marked done for ${windowLabel}. The visit now appears in the completed queue.`,
+      };
+    case "cancelled":
+      return {
+        title: "Visit cancelled",
+        message: `${subject} was removed from the schedule for ${windowLabel}.`,
+      };
+    default:
+      return {
+        title: "Schedule updated",
+        message: `${subject} was updated successfully.`,
+      };
+  }
+}
+
 async function fetchScheduleList(status) {
   const response = await fetch(API_ENDPOINTS[status]);
   const data = await response.json();
@@ -162,8 +222,13 @@ function matchesSearch(schedule, query) {
 
 export default function AntemortemScheduleScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const isWide = width >= 880;
+  const requestedScheduleId = parseInt(
+    String(getParamValue(params?.schedule_id) || ""),
+    10
+  );
   const [allSchedules, setAllSchedules] = useState([]);
   const [statusCounts, setStatusCounts] = useState({
     pending: 0,
@@ -175,9 +240,20 @@ export default function AntemortemScheduleScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyScheduleId, setBusyScheduleId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const requestedStatus = String(getParamValue(params?.status) || "")
+    .trim()
+    .toLowerCase();
+  const initialStatus =
+    STATUS_ORDER.includes(requestedStatus) ? requestedStatus : "pending";
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [searchQuery, setSearchQuery] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    if (STATUS_ORDER.includes(requestedStatus)) {
+      setStatusFilter(requestedStatus);
+    }
+  }, [requestedStatus]);
 
   useEffect(() => {
     let active = true;
@@ -244,7 +320,14 @@ export default function AntemortemScheduleScreen() {
     setReloadToken((current) => current + 1);
   };
 
-  const updateScheduleStatus = async (scheduleId, newStatus) => {
+  const updateScheduleStatus = async (schedule, newStatus) => {
+    const scheduleId = schedule?.schedule_id;
+
+    if (!scheduleId) {
+      Alert.alert("Error", "Schedule ID is missing for this update.");
+      return;
+    }
+
     try {
       setBusyScheduleId(scheduleId);
 
@@ -259,7 +342,8 @@ export default function AntemortemScheduleScreen() {
       const data = await response.json();
 
       if (data.status === "success") {
-        Alert.alert("Success", `Schedule marked as ${newStatus}.`);
+        const feedback = buildStatusSuccessFeedback(schedule, newStatus);
+        Alert.alert(feedback.title, feedback.message);
         triggerReload(false);
       } else {
         Alert.alert("Error", data.message || "Failed to update schedule.");
@@ -320,24 +404,24 @@ export default function AntemortemScheduleScreen() {
         <View style={styles.actionStack}>
           <AgriButton
             title="Accept request"
-            subtitle="Move this schedule into the accepted queue"
+            subtitle="Confirm this booking and move it into the accepted queue"
             icon="check-decagram-outline"
             variant="primary"
             compact
             trailingIcon={false}
             loading={isBusy}
             disabled={Boolean(busyScheduleId)}
-            onPress={() => updateScheduleStatus(schedule.schedule_id, "accepted")}
+            onPress={() => updateScheduleStatus(schedule, "accepted")}
           />
           <AgriButton
             title="Decline request"
-            subtitle="Mark this booking as cancelled"
+            subtitle="Reject this booking and remove it from the queue"
             icon="close-circle-outline"
             variant="danger"
             compact
             trailingIcon={false}
             disabled={Boolean(busyScheduleId)}
-            onPress={() => updateScheduleStatus(schedule.schedule_id, "cancelled")}
+            onPress={() => updateScheduleStatus(schedule, "cancelled")}
           />
         </View>
       );
@@ -348,18 +432,18 @@ export default function AntemortemScheduleScreen() {
         <View style={styles.actionStack}>
           <AgriButton
             title="Start field visit"
-            subtitle="Move this schedule into the ongoing queue"
+            subtitle="Mark this booking as active and move it into the field queue"
             icon="play-circle-outline"
             variant="sky"
             compact
             trailingIcon={false}
             loading={isBusy}
             disabled={Boolean(busyScheduleId)}
-            onPress={() => updateScheduleStatus(schedule.schedule_id, "ongoing")}
+            onPress={() => updateScheduleStatus(schedule, "ongoing")}
           />
           <AgriButton
             title="Verify QR"
-            subtitle="Open the scanner for this livestock form"
+            subtitle="Open the QR scanner to confirm this livestock record on-site"
             icon="qrcode-scan"
             variant="secondary"
             compact
@@ -367,13 +451,17 @@ export default function AntemortemScheduleScreen() {
             onPress={() =>
               router.push({
                 pathname: "/antemortemScanQRcode",
-                params: { form_id: schedule.form_id },
+                params: {
+                  form_id: schedule.form_id,
+                  schedule_id: schedule.schedule_id,
+                  status: statusFilter,
+                },
               })
             }
           />
           <AgriButton
             title="Cancel visit"
-            subtitle="Remove this accepted booking from the schedule"
+            subtitle="Remove this accepted booking from the schedule board"
             icon="calendar-remove-outline"
             variant="danger"
             compact
@@ -390,14 +478,14 @@ export default function AntemortemScheduleScreen() {
         <View style={styles.actionStack}>
           <AgriButton
             title="Mark inspection done"
-            subtitle="Close this field visit as completed"
+            subtitle="Finish this field visit and move it into the done queue"
             icon="check-circle-outline"
             variant="primary"
             compact
             trailingIcon={false}
             loading={isBusy}
             disabled={Boolean(busyScheduleId)}
-            onPress={() => updateScheduleStatus(schedule.schedule_id, "done")}
+            onPress={() => updateScheduleStatus(schedule, "done")}
           />
         </View>
       );
@@ -410,7 +498,7 @@ export default function AntemortemScheduleScreen() {
     <DashboardShell
       eyebrow="Antemortem schedule board"
       title="Review schedules"
-      subtitle="Monitor every livestock visit from pending requests to completed inspections in one cleaner, easier-to-scan workspace."
+      subtitle="Use this board to move livestock inspections from review to field work and keep every visit in the right queue."
       summary={
         loading
           ? "Refreshing the antemortem schedule board..."
@@ -449,10 +537,10 @@ export default function AntemortemScheduleScreen() {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Search and filter</Text>
-        <Text style={styles.cardTitle}>Shift between schedule queues</Text>
+        <Text style={styles.cardTitle}>Choose the queue you want to work on</Text>
         <Text style={styles.cardCopy}>
-          Search by owner, eartag, location, or form number, then switch between
-          inspection stages with a cleaner status board.
+          Search by owner, eartag, location, or form number, then switch to the
+          inspection stage that needs action next.
         </Text>
 
         <View style={styles.searchWrap}>
@@ -542,8 +630,9 @@ export default function AntemortemScheduleScreen() {
               {activeMeta.label} visits
             </Text>
             <Text style={styles.cardCopy}>
+              Review the {activeMeta.label.toLowerCase()} queue below.{" "}
               {filteredSchedules.length} result
-              {filteredSchedules.length === 1 ? "" : "s"} visible in this queue.
+              {filteredSchedules.length === 1 ? "" : "s"} are visible right now.
             </Text>
           </View>
 
@@ -574,9 +663,31 @@ export default function AntemortemScheduleScreen() {
           <View style={styles.scheduleStack}>
             {filteredSchedules.map((schedule) => {
               const isBusy = busyScheduleId === schedule.schedule_id;
+              const isHighlighted =
+                Number.isFinite(requestedScheduleId) &&
+                requestedScheduleId > 0 &&
+                schedule.schedule_id === requestedScheduleId;
 
               return (
-                <View key={schedule.schedule_id} style={styles.scheduleCard}>
+                <View
+                  key={schedule.schedule_id}
+                  style={[
+                    styles.scheduleCard,
+                    isHighlighted && styles.scheduleCardHighlighted,
+                  ]}
+                >
+                  {isHighlighted ? (
+                    <View style={styles.returnBadge}>
+                      <MaterialCommunityIcons
+                        name="restore"
+                        size={15}
+                        color={agriPalette.fieldDeep}
+                      />
+                      <Text style={styles.returnBadgeText}>
+                        Returned from scanner
+                      </Text>
+                    </View>
+                  ) : null}
                   <View
                     style={[
                       styles.scheduleHeader,
@@ -820,6 +931,32 @@ const styles = StyleSheet.create({
     borderColor: agriPalette.border,
     paddingHorizontal: 18,
     paddingVertical: 18,
+  },
+  scheduleCardHighlighted: {
+    borderColor: agriPalette.field,
+    shadowColor: agriPalette.fieldDeep,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  returnBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#E1EFE8",
+    borderWidth: 1,
+    borderColor: "#B9D3C6",
+  },
+  returnBadgeText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "800",
   },
   scheduleHeader: {
     gap: 12,

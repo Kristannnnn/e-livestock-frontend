@@ -1,5 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -22,8 +22,8 @@ import {
 } from "react-native-paper";
 import AgriButton from "../components/AgriButton";
 import FeedbackBanner from "../components/FeedbackBanner";
-import { apiRoutes, apiUrl } from "../lib/api";
 import { agriPalette, agriPaperTheme } from "../constants/agriTheme";
+import { apiRoutes, apiUrl } from "../lib/api";
 
 const API_URL = apiUrl(apiRoutes.auth.login);
 
@@ -310,7 +310,7 @@ function LoginScreen() {
                 { backgroundColor: colors.surface },
               ]}
             >
-              <Text style={styles.cardEyebrow}>Secure Login</Text>
+
               <Text style={[styles.cardTitle, { color: colors.onSurface }]}>
                 Welcome back
               </Text>

@@ -221,37 +221,39 @@ export default function DashboardScreen() {
       <View style={styles.sectionCard}>
         <Text style={styles.sectionEyebrow}>Quick actions</Text>
         <Text style={styles.sectionTitle}>
-          Move through your livestock tasks faster
+          Start the owner task you need next
         </Text>
         <Text style={styles.sectionCopy}>
-          Jump into your stockyard, review your appointment queue, or end the
-          session with the same agriculture-themed workflow.
+          Use these shortcuts as your owner workspace: review active permits,
+          check booking progress, update your profile, or close the session
+          once today&apos;s work is done.
         </Text>
 
         <View style={styles.actionStack}>
           <AgriButton
-            title="Open Stockyard"
-            subtitle="Review your livestock permits and QR details"
+            title="Review stockyard records"
+            subtitle="Open your permit list to inspect QR details, expiry dates, and renewal-ready forms."
             icon="barn"
             variant="primary"
             onPress={() => router.push("/stockyard")}
           />
           <AgriButton
-            title="Check schedules"
-            subtitle="See your upcoming inspections and appointment slots"
+            title="Track appointment progress"
+            subtitle="Check upcoming visits, booked dates, and inspection updates tied to your livestock records."
             icon="calendar-month-outline"
             variant="sky"
             onPress={() => router.push("/checkSchedule")}
           />
           <AgriButton
-            title="Settings"
-            subtitle="Update your owner profile details"
+            title="Manage account settings"
+            subtitle="Update your owner profile information so records and notifications stay accurate."
+            icon="cog-outline"
             variant="secondary"
             onPress={() => router.push("/settings")}
           />
           <AgriButton
-            title="Logout"
-            subtitle="Finish this session securely"
+            title="End this owner session"
+            subtitle="Sign out securely after reviewing permits, schedules, and profile updates."
             icon="logout"
             variant="danger"
             onPress={handleLogout}

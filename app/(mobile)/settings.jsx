@@ -567,7 +567,7 @@ export default function SettingsScreen() {
     <DashboardShell
       eyebrow={settingsMeta.eyebrow}
       title="Profile settings"
-      subtitle={`Review the ${settingsMeta.roleLabel} details connected to your account. Tap Edit on any field you want to update, then save once everything looks right.`}
+      subtitle={`Use this settings page to review the ${settingsMeta.roleLabel} details linked to your account, unlock the field you want to change, and save once everything looks correct.`}
       summary={
         loading
           ? "Loading your account details..."
@@ -584,12 +584,23 @@ export default function SettingsScreen() {
       />
 
       <View style={styles.surfaceCard}>
-        <Text style={styles.cardEyebrow}>Account profile</Text>
-        <Text style={styles.cardTitle}>Edit your account details</Text>
+        <View style={styles.settingsHeaderRow}>
+          <View style={styles.settingsHeaderIcon}>
+            <MaterialCommunityIcons
+              name="cog-outline"
+              size={24}
+              color={agriPalette.fieldDeep}
+            />
+          </View>
+          <View style={styles.settingsHeaderCopy}>
+            <Text style={styles.cardEyebrow}>Account profile</Text>
+            <Text style={styles.cardTitle}>Edit your account details</Text>
+          </View>
+        </View>
         <Text style={styles.cardCopy}>
-          These details are used for your login identity, contact profile, and
-          account-linked records across the app. Keep them accurate so your
-          assigned data stays matched to the right user.
+          These details power your login identity, contact profile, and
+          account-linked records across the app. Keep them accurate so permits,
+          schedules, and notifications stay matched to the right user.
         </Text>
 
         <View style={styles.profileHero}>
@@ -645,8 +656,8 @@ export default function SettingsScreen() {
                 : "Your account"}
             </Text>
             <Text style={styles.profilePhotoHint}>
-              Add a clear square photo so your account looks more personal and
-              easier to recognize.
+              Add a clear square photo so your account is easier to recognize in
+              dashboards, forms, and activity history.
             </Text>
           </View>
         </View>
@@ -921,6 +932,24 @@ const styles = StyleSheet.create({
     color: agriPalette.ink,
     fontSize: 25,
     fontWeight: "900",
+  },
+  settingsHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  settingsHeaderIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E3F1E0",
+    borderWidth: 1,
+    borderColor: "#C5DDBF",
+  },
+  settingsHeaderCopy: {
+    flex: 1,
   },
   cardCopy: {
     marginTop: 10,

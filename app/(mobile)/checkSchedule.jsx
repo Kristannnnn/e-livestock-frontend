@@ -438,7 +438,7 @@ export default function ScheduleScreen() {
           ? `${lastName}'s schedule board`
           : "My schedules"
       }
-      subtitle="A cleaner queue for upcoming inspections, completed visits, and cancellations."
+      subtitle="Use this schedule board to track upcoming inspections, review finished visits, and spot cancellations that need follow-up."
       summary={
         loading
           ? "Refreshing your appointment board..."
@@ -456,9 +456,10 @@ export default function ScheduleScreen() {
         <View style={[styles.boardRow, isWide && styles.boardRowWide]}>
           <View style={styles.boardCopy}>
             <Text style={styles.cardEyebrow}>Schedule board</Text>
-            <Text style={styles.cardTitle}>Filter the queue with better context</Text>
+            <Text style={styles.cardTitle}>Choose the schedule view you want to review</Text>
             <Text style={styles.cardCopy}>
-              Switch views, keep the next inspection visible, and jump back to the stockyard when you need a permit record.
+              Use filters, date tools, and quick actions to focus on the exact
+              appointments you need to review or manage next.
             </Text>
 
             <View style={styles.filterRow}>
@@ -596,7 +597,7 @@ export default function ScheduleScreen() {
             <View style={styles.actionRow}>
               <AgriButton
                 title="Refresh schedules"
-                subtitle="Pull the latest updates"
+                subtitle="Reload the newest schedule updates"
                 icon="refresh"
                 variant="secondary"
                 compact
@@ -606,7 +607,7 @@ export default function ScheduleScreen() {
               />
               <AgriButton
                 title="Open stockyard"
-                subtitle="Return to permit records"
+                subtitle="Go back to permits and booking-ready records"
                 icon="barn"
                 variant="sky"
                 compact
@@ -645,9 +646,10 @@ export default function ScheduleScreen() {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Appointments</Text>
-        <Text style={styles.cardTitle}>A stronger visit timeline</Text>
+        <Text style={styles.cardTitle}>Review each visit with full context</Text>
         <Text style={styles.cardCopy}>
-          Each card keeps the date, visit window, route, and status stage visible in one scan.
+          Each appointment card keeps the date, time, route, and current stage
+          visible so you can decide the next step quickly.
         </Text>
 
         {loading ? (
@@ -744,7 +746,7 @@ export default function ScheduleScreen() {
                       {canCancel ? (
                         <AgriButton
                           title="Cancel schedule"
-                          subtitle="Release this appointment slot"
+                          subtitle="Cancel this visit and free the appointment slot"
                           icon="close-circle-outline"
                           variant="danger"
                           compact

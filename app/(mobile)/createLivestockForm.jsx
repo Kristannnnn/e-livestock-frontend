@@ -1096,8 +1096,8 @@ export default function AddLivestockForm() {
       title={isRenewalMode ? "Renew livestock form" : "Create livestock form"}
       subtitle={
         isRenewalMode
-          ? "Reuse the expired record, edit the details, and submit one renewed livestock form for the scheduled owner request."
-          : "Submit one batch of animals while keeping DSS and scheduling linked to each animal."
+          ? "Use this workspace to reopen the expired record, update what changed, and submit the renewed livestock form for the scheduled owner request."
+          : "Use this form workspace to prepare one livestock batch while keeping DSS and scheduling linked to each animal."
       }
       summary={
         submitted
@@ -1122,11 +1122,11 @@ export default function AddLivestockForm() {
           </View>
         ) : null}
 
-        <Text style={styles.heading}>Batch Details</Text>
+        <Text style={styles.heading}>Prepare shared batch details</Text>
         <Text style={styles.sectionLead}>
           {isRenewalMode
-            ? "Shared owner, route, and inspection details were prefilled from the old form and can still be updated before you submit the renewed record."
-            : "Shared owner, route, and inspection information will apply to every animal in this batch."}
+            ? "Shared owner, route, and inspection details were prefilled from the old form so you can review them, adjust what changed, and submit the renewal."
+            : "These shared owner, route, and inspection details will apply to every animal you add to this batch."}
         </Text>
         {renderError(batchErrors.account_id)}
         <Text style={styles.label}>Owner name</Text>

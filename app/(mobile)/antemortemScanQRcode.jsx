@@ -216,6 +216,10 @@ export default function AntemortemScanQRcode() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const incomingFormId = parseInt(getParamValue(params?.form_id), 10) || 0;
+  const incomingScheduleId = parseInt(getParamValue(params?.schedule_id), 10) || 0;
+  const returnStatus = String(getParamValue(params?.status) || "")
+    .trim()
+    .toLowerCase();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -305,10 +309,29 @@ export default function AntemortemScanQRcode() {
     setLastScannedData(null);
   };
 
-  const onDone = () =>
-    router.replace(
-      incomingFormId > 0 ? "/antemortemSchedules" : "/antemortemDashboard"
-    );
+  const onDone = () => {
+    if (incomingFormId > 0) {
+      const nextParams = {};
+
+      if (returnStatus) {
+        nextParams.status = returnStatus;
+      }
+
+      if (incomingScheduleId > 0) {
+        nextParams.schedule_id = String(incomingScheduleId);
+      }
+
+      nextParams.form_id = String(incomingFormId);
+
+      router.replace({
+        pathname: "/antemortemSchedules",
+        params: nextParams,
+      });
+      return;
+    }
+
+    router.replace("/antemortemDashboard");
+  };
 
   return (
     <View style={styles.container}>
