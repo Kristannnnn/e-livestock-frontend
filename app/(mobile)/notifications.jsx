@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -11,21 +12,96 @@ const MARK_READ_URL = apiUrl(apiRoutes.notifications.markRead);
 const CATEGORY_COUNTS_TEMPLATE = {
   all: 0,
   unread: 0,
+  account: 0,
   renewals: 0,
   schedules: 0,
   forms: 0,
   system: 0,
 };
-const FILTER_ORDER = ["all", "unread", "renewals", "schedules", "forms", "system"];
+const FILTER_ORDER = ["all", "unread", "account", "renewals", "schedules", "forms", "system"];
 const FILTER_LABELS = {
   all: "All",
   unread: "Unread",
+  account: "Account",
   renewals: "Renewals",
   schedules: "Schedules",
   forms: "Forms",
   system: "System",
 };
+const NOTIFICATION_VISUALS = {
+  login_success: {
+    icon: "shield-check-outline",
+    accent: "#1F7A4C",
+    backgroundColor: "#E8F5EC",
+    borderColor: "#CBE5D4",
+  },
+  account_updated: {
+    icon: "account-edit-outline",
+    accent: "#315E8F",
+    backgroundColor: "#E6EEF7",
+    borderColor: "#C4D5EA",
+  },
+  password_updated: {
+    icon: "lock-check-outline",
+    accent: "#8A5E14",
+    backgroundColor: "#FBF2D3",
+    borderColor: "#E8D08B",
+  },
+  renewal_request: {
+    icon: "calendar-refresh-outline",
+    accent: "#7A5A12",
+    backgroundColor: "#FFF4D6",
+    borderColor: "#F2DC9F",
+  },
+  renewal_completed: {
+    icon: "check-decagram-outline",
+    accent: agriPalette.fieldDeep,
+    backgroundColor: "#E4F1EB",
+    borderColor: "#C7DDD1",
+  },
+  renewal_cancelled: {
+    icon: "close-octagon-outline",
+    accent: agriPalette.redClay,
+    backgroundColor: "#F7E1D5",
+    borderColor: "#E6B9A0",
+  },
+  schedule_created: {
+    icon: "calendar-clock-outline",
+    accent: "#315E8F",
+    backgroundColor: "#E6EEF7",
+    borderColor: "#C4D5EA",
+  },
+  schedule_status: {
+    icon: "calendar-sync-outline",
+    accent: agriPalette.fieldDeep,
+    backgroundColor: "#E4F1EB",
+    borderColor: "#C7DDD1",
+  },
+  schedule_cancelled: {
+    icon: "calendar-remove-outline",
+    accent: agriPalette.redClay,
+    backgroundColor: "#F7E1D5",
+    borderColor: "#E6B9A0",
+  },
+  form_batch: {
+    icon: "file-document-check-outline",
+    accent: agriPalette.field,
+    backgroundColor: "#EEF7E9",
+    borderColor: "#D8EBC9",
+  },
+  general: {
+    icon: "bell-badge-outline",
+    accent: agriPalette.inkSoft,
+    backgroundColor: "#F5EEE1",
+    borderColor: "#DFCDB4",
+  },
+};
 const CATEGORY_TONES = {
+  account: {
+    backgroundColor: "#E9F0F8",
+    borderColor: "#C4D5EA",
+    color: "#315E8F",
+  },
   renewals: {
     backgroundColor: "#FFF4D6",
     borderColor: "#F2DC9F",
@@ -57,6 +133,10 @@ function normalizeNotificationType(type) {
 function getNotificationCategory(type) {
   const normalizedType = normalizeNotificationType(type);
 
+  if (["login_success", "account_updated", "password_updated"].includes(normalizedType)) {
+    return "account";
+  }
+
   if (["renewal_request", "renewal_completed", "renewal_cancelled"].includes(normalizedType)) {
     return "renewals";
   }
@@ -83,6 +163,9 @@ function getNotificationTypeLabel(type) {
     schedule_created: "New schedule",
     schedule_status: "Schedule update",
     schedule_cancelled: "Schedule cancelled",
+    login_success: "Login success",
+    account_updated: "Account updated",
+    password_updated: "Password updated",
     renewal_request: "Renewal request",
     renewal_completed: "Renewal completed",
     renewal_cancelled: "Renewal cancelled",
@@ -158,11 +241,51 @@ function formatNotificationDate(dateValue) {
   return parsed.toLocaleString();
 }
 
+function formatRelativeTime(dateValue) {
+  const parsed = new Date(dateValue);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Unknown time";
+  }
+
+  const seconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+
+  if (seconds < 60) {
+    return "Just now";
+  }
+
+  if (seconds < 3600) {
+    return `${Math.floor(seconds / 60)}m ago`;
+  }
+
+  if (seconds < 86400) {
+    return `${Math.floor(seconds / 3600)}h ago`;
+  }
+
+  if (seconds < 604800) {
+    return `${Math.floor(seconds / 86400)}d ago`;
+  }
+
+  return formatNotificationDate(dateValue);
+}
+
+function getNotificationVisual(type) {
+  const normalizedType = normalizeNotificationType(type);
+  return NOTIFICATION_VISUALS[normalizedType] || NOTIFICATION_VISUALS.general;
+}
+
 function buildEmptyState(activeFilter) {
   if (activeFilter === "unread") {
     return {
       title: "No unread alerts",
-      copy: "You are all caught up. New schedule, renewal, and form updates will appear here when they arrive.",
+      copy: "You are all caught up. New account, schedule, renewal, and form updates will appear here when they arrive.",
+    };
+  }
+
+  if (activeFilter === "account") {
+    return {
+      title: "No account alerts",
+      copy: "Successful sign-ins, profile saves, and password changes will appear here for quick account tracking.",
     };
   }
 
@@ -196,7 +319,7 @@ function buildEmptyState(activeFilter) {
 
   return {
     title: "No notifications yet",
-    copy: "New form, renewal, and schedule activity will appear here for your account.",
+    copy: "New account, form, renewal, and schedule activity will appear here for your account.",
   };
 }
 
@@ -301,6 +424,7 @@ export default function NotificationsScreen() {
   };
 
   const filteredNotifications = filterNotifications(notifications, activeFilter);
+  const latestNotification = notifications[0] || null;
   const filterKeys = FILTER_ORDER.filter(
     (key) => key !== "system" || categoryCounts.system > 0 || activeFilter === "system",
   );
@@ -340,6 +464,40 @@ export default function NotificationsScreen() {
           disabled={!accountId || unreadCount === 0}
         />
       </View>
+
+      {latestNotification ? (
+        <View style={styles.highlightCard}>
+          <View
+            style={[
+              styles.highlightIconWrap,
+              {
+                backgroundColor: getNotificationVisual(latestNotification.type).backgroundColor,
+                borderColor: getNotificationVisual(latestNotification.type).borderColor,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={getNotificationVisual(latestNotification.type).icon}
+              size={24}
+              color={getNotificationVisual(latestNotification.type).accent}
+            />
+          </View>
+
+          <View style={styles.highlightBody}>
+            <Text style={styles.highlightEyebrow}>Latest activity</Text>
+            <Text style={styles.highlightTitle}>{latestNotification.title}</Text>
+            <Text style={styles.highlightCopy} numberOfLines={2}>
+              {latestNotification.message}
+            </Text>
+          </View>
+
+          <View style={styles.highlightTimeWrap}>
+            <Text style={styles.highlightTime}>
+              {formatRelativeTime(latestNotification.created_at)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.filterRail}>
         <Text style={styles.filterHeading}>Browse by category</Text>
@@ -387,6 +545,7 @@ export default function NotificationsScreen() {
 
         {filteredNotifications.map((item) => {
           const tone = CATEGORY_TONES[item.category] || CATEGORY_TONES.system;
+          const visual = getNotificationVisual(item.type);
 
           return (
             <Pressable
@@ -398,9 +557,34 @@ export default function NotificationsScreen() {
                 }
               }}
             >
-              <View style={styles.header}>
-                <Text style={styles.title}>{item.title}</Text>
-                {!item.is_read ? <View style={styles.dot} /> : null}
+              <View style={styles.cardTopRow}>
+                <View style={styles.cardLead}>
+                  <View
+                    style={[
+                      styles.iconWrap,
+                      {
+                        backgroundColor: visual.backgroundColor,
+                        borderColor: visual.borderColor,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={visual.icon}
+                      size={22}
+                      color={visual.accent}
+                    />
+                  </View>
+
+                  <View style={styles.cardLeadText}>
+                    <Text style={styles.cardEyebrow}>{item.type_label}</Text>
+                    <Text style={styles.title}>{item.title}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.timePill}>
+                  <Text style={styles.timePillText}>{formatRelativeTime(item.created_at)}</Text>
+                  {!item.is_read ? <View style={styles.dot} /> : null}
+                </View>
               </View>
               <Text style={styles.copy}>{item.message}</Text>
               <View style={styles.metaRow}>
@@ -432,6 +616,62 @@ const styles = StyleSheet.create({
   actions: {
     gap: 12,
     marginBottom: 18,
+  },
+  highlightCard: {
+    marginBottom: 16,
+    padding: 18,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    backgroundColor: "rgba(255,253,247,0.96)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  highlightIconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  highlightBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  highlightEyebrow: {
+    color: agriPalette.field,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  highlightTitle: {
+    color: agriPalette.ink,
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  highlightCopy: {
+    marginTop: 6,
+    color: agriPalette.inkSoft,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  highlightTimeWrap: {
+    alignSelf: "flex-start",
+    backgroundColor: agriPalette.cream,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  highlightTime: {
+    color: agriPalette.fieldDeep,
+    fontSize: 11,
+    fontWeight: "900",
   },
   filterRail: {
     backgroundColor: "rgba(255,253,247,0.9)",
@@ -520,6 +760,37 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  cardLead: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardLeadText: {
+    flex: 1,
+  },
+  cardEyebrow: {
+    color: agriPalette.field,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
   title: {
     color: agriPalette.ink,
     fontSize: 18,
@@ -563,9 +834,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  timePill: {
+    maxWidth: 110,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    backgroundColor: agriPalette.cream,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  timePillText: {
+    color: agriPalette.inkSoft,
+    fontSize: 11,
+    fontWeight: "900",
+  },
   dot: {
-    width: 10,
-    height: 10,
+    width: 9,
+    height: 9,
     borderRadius: 999,
     backgroundColor: agriPalette.field,
   },
