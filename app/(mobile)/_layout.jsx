@@ -26,6 +26,12 @@ const FOOTER_ITEMS_BY_ROLE = {
       icon: "view-dashboard-outline",
     },
     {
+      key: "notifications",
+      label: "Alerts",
+      to: "/notifications",
+      icon: "bell-outline",
+    },
+    {
       key: "stockyard",
       label: "Stockyard",
       to: "/stockyard",
@@ -52,6 +58,12 @@ const FOOTER_ITEMS_BY_ROLE = {
       icon: "view-dashboard-outline",
     },
     {
+      key: "notifications",
+      label: "Alerts",
+      to: "/notifications",
+      icon: "bell-outline",
+    },
+    {
       key: "view-forms",
       label: "Forms",
       to: "/viewForms",
@@ -76,6 +88,12 @@ const FOOTER_ITEMS_BY_ROLE = {
       label: "Dashboard",
       to: "/antemortemDashboard",
       icon: "view-dashboard-outline",
+    },
+    {
+      key: "notifications",
+      label: "Alerts",
+      to: "/notifications",
+      icon: "bell-outline",
     },
     {
       key: "antemortem-schedules",
