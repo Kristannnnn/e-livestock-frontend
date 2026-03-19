@@ -622,6 +622,7 @@ export default function AddLivestockForm() {
         body: JSON.stringify({
           remarks: animal.remarks,
           form_id: animal.form_id,
+          account_id: accountId,
         }),
       });
 
