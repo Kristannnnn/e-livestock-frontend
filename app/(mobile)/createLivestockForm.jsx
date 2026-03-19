@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -19,6 +18,12 @@ import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
 import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
 import { agriPalette } from "../../constants/agriTheme";
+
+const DEFAULT_CITY = "Sipocot";
+const DEFAULT_PROVINCE = "Camarines Sur";
+const DEFAULT_DESTINATION = "Sipocot Abattoir Impig Sipocot - Camarines Sur";
+const DEFAULT_PURPOSE = "Slaughter";
+const OWNER_SEARCH_URL = apiUrl(apiRoutes.profile.searchOwners);
 
 const BARANGAYS = [
   "Aldezar",
@@ -69,74 +74,86 @@ const BARANGAYS = [
   "Yabo",
 ];
 
-const createInitialFormData = (inspectorIssued = "") => ({
-  animal_species: "",
-  animal_unique_identifier: "",
-  live_weight: "",
-  purpose: "Slaughter",
+const createBatchData = (inspector = "") => ({
   inspection_time_start: "",
   inspection_time_end: "",
   owner_name: "",
   owner_barangay: "",
-  owner_city: "Sipocot",
-  owner_province: "Camarines Sur",
+  owner_city: DEFAULT_CITY,
+  owner_province: DEFAULT_PROVINCE,
   animal_origin_barangay: "",
-  animal_origin_city: "Sipocot",
-  animal_origin_province: "Camarines Sur",
-  animal_destination: "Sipocot Abattoir Impig Sipocot - Camarines Sur",
+  animal_origin_city: DEFAULT_CITY,
+  animal_origin_province: DEFAULT_PROVINCE,
+  animal_destination: DEFAULT_DESTINATION,
   vehicle_used: "",
   paid_number: "",
-  inspector_issued: inspectorIssued,
+  inspector_issued: inspector,
+});
+
+const createAnimalDraft = () => ({
+  animal_species: "",
+  animal_unique_identifier: "",
+  live_weight: "",
+  purpose: DEFAULT_PURPOSE,
   remarks: "",
 });
 
 const getDefaultExpiry = () =>
   new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
-const OWNER_SEARCH_URL = apiUrl(apiRoutes.profile.searchOwners);
 
-function normalizeLookupValue(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+function normalizeValue(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function parseStoredAddress(address) {
-  const [barangay = "", city = "Sipocot", province = "Camarines Sur"] = String(
-    address || ""
-  )
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
+function parseAddress(address) {
+  const [barangay = "", city = DEFAULT_CITY, province = DEFAULT_PROVINCE] =
+    String(address || "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
 
   return { barangay, city, province };
+}
+
+function formatAddress(barangay, city, province) {
+  return [barangay, city, province].filter(Boolean).join(", ");
+}
+
+function hasDraftValues(animalDraft) {
+  return (
+    normalizeValue(animalDraft.animal_species) ||
+    normalizeValue(animalDraft.animal_unique_identifier) ||
+    normalizeValue(animalDraft.live_weight) ||
+    normalizeValue(animalDraft.remarks) ||
+    normalizeValue(animalDraft.purpose) !== normalizeValue(DEFAULT_PURPOSE)
+  );
 }
 
 export default function AddLivestockForm() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const isWide = width >= 980;
   const isTablet = width >= 700;
 
-  const [formData, setFormData] = useState(createInitialFormData());
+  const [batchData, setBatchData] = useState(createBatchData());
+  const [animalDraft, setAnimalDraft] = useState(createAnimalDraft());
+  const [queuedAnimals, setQueuedAnimals] = useState([]);
+  const [savedAnimals, setSavedAnimals] = useState([]);
+  const [editingId, setEditingId] = useState(null);
   const [accountId, setAccountId] = useState(null);
-  const [formId, setFormId] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  const [batchId, setBatchId] = useState("");
   const [qrValue, setQrValue] = useState("");
   const [qrExpiry, setQrExpiry] = useState("");
-  const [timePickerVisible, setTimePickerVisible] = useState(false);
-  const [currentTimeKey, setCurrentTimeKey] = useState("");
   const [loadingAccount, setLoadingAccount] = useState(true);
-  const [urgent, setUrgent] = useState(false);
-  const [showNewFormButton, setShowNewFormButton] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [dssClicked, setDssClicked] = useState(false);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [timeKey, setTimeKey] = useState("");
   const [selectedOwner, setSelectedOwner] = useState(null);
   const [ownerMatches, setOwnerMatches] = useState([]);
   const [ownerLookupLoading, setOwnerLookupLoading] = useState(false);
+  const [activeDssId, setActiveDssId] = useState(null);
 
   useEffect(() => {
-    const loadAccountInfo = async () => {
+    const loadAccount = async () => {
       try {
         const [storedId, firstName, lastName] = await Promise.all([
           AsyncStorage.getItem("account_id"),
@@ -144,19 +161,22 @@ export default function AddLivestockForm() {
           AsyncStorage.getItem("last_name"),
         ]);
 
-        const inspectorIssued =
+        const inspector =
           firstName && lastName ? `${firstName} ${lastName}` : "";
 
-        if (storedId) setAccountId(parseInt(storedId, 10));
-        setFormData(createInitialFormData(inspectorIssued));
-      } catch (err) {
-        console.error("Error loading account info:", err);
+        if (storedId) {
+          setAccountId(parseInt(storedId, 10));
+        }
+
+        setBatchData(createBatchData(inspector));
+      } catch (error) {
+        console.error("Load account error:", error);
       } finally {
         setLoadingAccount(false);
       }
     };
 
-    loadAccountInfo();
+    loadAccount();
   }, []);
 
   useEffect(() => {
@@ -166,8 +186,8 @@ export default function AddLivestockForm() {
       return undefined;
     }
 
-    const query = normalizeLookupValue(formData.owner_name);
-    const selectedName = normalizeLookupValue(selectedOwner?.full_name);
+    const query = normalizeValue(batchData.owner_name);
+    const selectedName = normalizeValue(selectedOwner?.full_name);
 
     if (query.length < 2 || (selectedOwner && query === selectedName)) {
       setOwnerMatches([]);
@@ -176,14 +196,13 @@ export default function AddLivestockForm() {
     }
 
     let active = true;
-
     const timeoutId = setTimeout(async () => {
       try {
         setOwnerLookupLoading(true);
         const response = await fetch(OWNER_SEARCH_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: formData.owner_name }),
+          body: JSON.stringify({ query: batchData.owner_name }),
         });
 
         const data = await parseJsonResponse(
@@ -191,22 +210,16 @@ export default function AddLivestockForm() {
           "Unable to search registered owners."
         );
 
-        if (!active) {
-          return;
-        }
-
-        if (data.status === "success") {
+        if (active && data.status === "success") {
           setOwnerMatches(Array.isArray(data.users) ? data.users : []);
-        } else {
+        } else if (active) {
           setOwnerMatches([]);
         }
-      } catch (err) {
-        if (!active) {
-          return;
+      } catch (error) {
+        if (active) {
+          console.error("Owner search error:", error);
+          setOwnerMatches([]);
         }
-
-        console.error("Owner search error:", err);
-        setOwnerMatches([]);
       } finally {
         if (active) {
           setOwnerLookupLoading(false);
@@ -218,62 +231,147 @@ export default function AddLivestockForm() {
       active = false;
       clearTimeout(timeoutId);
     };
-  }, [formData.owner_name, selectedOwner, submitted]);
+  }, [batchData.owner_name, selectedOwner, submitted]);
 
-  const handleChange = (key, value) =>
-    setFormData((prev) => ({ ...prev, [key]: value }));
+  const ownerAddress = formatAddress(
+    batchData.owner_barangay,
+    batchData.owner_city,
+    batchData.owner_province
+  );
+  const originAddress = formatAddress(
+    batchData.animal_origin_barangay,
+    batchData.animal_origin_city,
+    batchData.animal_origin_province
+  );
+  const reviewedCount = savedAnimals.filter((animal) => animal.dssChecked).length;
+  const urgentCount = savedAnimals.filter((animal) => animal.urgent).length;
 
-  const handleOwnerNameChange = (value) => {
-    setFormData((prev) => ({ ...prev, owner_name: value }));
+  const updateBatchData = (key, value) =>
+    setBatchData((prev) => ({ ...prev, [key]: value }));
+
+  const updateAnimalDraft = (key, value) =>
+    setAnimalDraft((prev) => ({ ...prev, [key]: value }));
+
+  const onOwnerChange = (value) => {
+    updateBatchData("owner_name", value);
 
     if (
       selectedOwner &&
-      normalizeLookupValue(selectedOwner.full_name) !==
-        normalizeLookupValue(value)
+      normalizeValue(selectedOwner.full_name) !== normalizeValue(value)
     ) {
       setSelectedOwner(null);
     }
   };
 
-  const handleOwnerSelect = (owner) => {
-    const parsedAddress = parseStoredAddress(owner.address);
-
+  const onOwnerSelect = (owner) => {
+    const parsed = parseAddress(owner.address);
     setSelectedOwner(owner);
     setOwnerMatches([]);
-    setFormData((prev) => ({
+    setBatchData((prev) => ({
       ...prev,
       owner_name: owner.full_name || prev.owner_name,
-      owner_barangay: parsedAddress.barangay || prev.owner_barangay,
-      owner_city: parsedAddress.city || prev.owner_city,
-      owner_province: parsedAddress.province || prev.owner_province,
+      owner_barangay: parsed.barangay || prev.owner_barangay,
+      owner_city: parsed.city || prev.owner_city,
+      owner_province: parsed.province || prev.owner_province,
     }));
   };
 
-  const openTimePicker = (key) => {
-    setCurrentTimeKey(key);
-    setTimePickerVisible(true);
+  const resetAnimalDraft = () => {
+    setAnimalDraft(createAnimalDraft());
+    setEditingId(null);
   };
 
-  const handleTimeConfirm = (date) => {
-    if (!currentTimeKey) return;
+  const validateAnimalDraft = () => {
+    const required = [
+      ["animal_species", "Animal species"],
+      ["animal_unique_identifier", "Unique identifier"],
+      ["live_weight", "Live weight"],
+      ["purpose", "Purpose"],
+      ["remarks", "Remarks"],
+    ];
 
-    const timeString = date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
+    for (const [key, label] of required) {
+      if (!String(animalDraft[key] || "").trim()) {
+        Alert.alert("Error", `Please fill the field: ${label}`);
+        return false;
+      }
+    }
+
+    const duplicate = queuedAnimals.find(
+      (animal) =>
+        animal.id !== editingId &&
+        normalizeValue(animal.animal_unique_identifier) ===
+          normalizeValue(animalDraft.animal_unique_identifier)
+    );
+
+    if (duplicate) {
+      Alert.alert(
+        "Duplicate identifier",
+        "This animal identifier is already queued in the batch."
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const queueAnimal = () => {
+    if (!validateAnimalDraft()) {
+      return;
+    }
+
+    const nextAnimal = {
+      id: editingId || `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      ...animalDraft,
+      animal_species: animalDraft.animal_species.trim(),
+      animal_unique_identifier: animalDraft.animal_unique_identifier.trim(),
+      live_weight: animalDraft.live_weight.trim(),
+      purpose: animalDraft.purpose.trim(),
+      remarks: animalDraft.remarks.trim(),
+    };
+
+    setQueuedAnimals((prev) =>
+      editingId
+        ? prev.map((animal) => (animal.id === editingId ? nextAnimal : animal))
+        : [...prev, nextAnimal]
+    );
+    resetAnimalDraft();
+  };
+
+  const editQueuedAnimal = (animal) => {
+    setEditingId(animal.id);
+    setAnimalDraft({
+      animal_species: animal.animal_species,
+      animal_unique_identifier: animal.animal_unique_identifier,
+      live_weight: animal.live_weight,
+      purpose: animal.purpose,
+      remarks: animal.remarks,
     });
-
-    setFormData((prev) => ({ ...prev, [currentTimeKey]: timeString }));
-    setTimePickerVisible(false);
-    setCurrentTimeKey("");
   };
 
-  const validateForm = () => {
-    for (const key in formData) {
-      if (!formData[key] || formData[key].trim() === "") {
-        Alert.alert(
-          "Error",
-          `Please fill the field: ${key.replace(/_/g, " ")}`
-        );
+  const removeQueuedAnimal = (animalId) => {
+    setQueuedAnimals((prev) => prev.filter((animal) => animal.id !== animalId));
+
+    if (editingId === animalId) {
+      resetAnimalDraft();
+    }
+  };
+
+  const validateBatch = () => {
+    const required = [
+      ["inspection_time_start", "Inspection start time"],
+      ["inspection_time_end", "Inspection end time"],
+      ["owner_name", "Owner name"],
+      ["owner_barangay", "Owner barangay"],
+      ["animal_origin_barangay", "Animal origin barangay"],
+      ["animal_destination", "Animal destination"],
+      ["vehicle_used", "Vehicle used"],
+      ["paid_number", "Paid number"],
+    ];
+
+    for (const [key, label] of required) {
+      if (!String(batchData[key] || "").trim()) {
+        Alert.alert("Error", `Please fill the field: ${label}`);
         return false;
       }
     }
@@ -283,161 +381,220 @@ export default function AddLivestockForm() {
       return false;
     }
 
+    if (queuedAnimals.length === 0) {
+      Alert.alert("No animals queued", "Add at least one animal first.");
+      return false;
+    }
+
+    if (hasDraftValues(animalDraft)) {
+      Alert.alert(
+        "Unsaved animal entry",
+        "Add or clear the current animal draft before submitting."
+      );
+      return false;
+    }
+
     return true;
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
+  const submitBatch = async () => {
+    if (!validateBatch()) {
+      return;
+    }
 
     try {
-      const payload = {
-        account_id: accountId,
-        inspector: formData.inspector_issued,
-        inspection_time_start: formData.inspection_time_start,
-        inspection_time_end: formData.inspection_time_end,
-        animals: [
-          {
-            animal_species: formData.animal_species,
-            animal_unique_identifier: formData.animal_unique_identifier,
-            live_weight: formData.live_weight,
-            purpose: formData.purpose,
-            owner_name: formData.owner_name,
-            owner_account_id: selectedOwner?.account_id ?? null,
-            owner_address: `${formData.owner_barangay}, ${formData.owner_city}, ${formData.owner_province}`,
-            animal_origin: `${formData.animal_origin_barangay}, ${formData.animal_origin_city}, ${formData.animal_origin_province}`,
-            animal_destination: formData.animal_destination,
-            vehicle_used: formData.vehicle_used,
-            paid_number: formData.paid_number,
-            inspector_issued: formData.inspector_issued,
-            remarks: formData.remarks,
-          },
-        ],
-      };
-
       const token = await AsyncStorage.getItem("token");
-      const response = await fetch(
-        apiUrl(apiRoutes.inspector.createForm),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(apiUrl(apiRoutes.inspector.createForm), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          account_id: accountId,
+          inspector: batchData.inspector_issued,
+          inspection_time_start: batchData.inspection_time_start,
+          inspection_time_end: batchData.inspection_time_end,
+          animals: queuedAnimals.map((animal) => ({
+            animal_species: animal.animal_species,
+            animal_unique_identifier: animal.animal_unique_identifier,
+            live_weight: animal.live_weight,
+            purpose: animal.purpose,
+            owner_name: batchData.owner_name,
+            owner_account_id: selectedOwner?.account_id ?? null,
+            owner_address: ownerAddress,
+            animal_origin: originAddress,
+            animal_destination: batchData.animal_destination,
+            vehicle_used: batchData.vehicle_used,
+            paid_number: batchData.paid_number,
+            inspector_issued: batchData.inspector_issued,
+            remarks: animal.remarks,
+          })),
+        }),
+      });
 
       const data = await parseJsonResponse(
         response,
         "Invalid JSON response from API."
       );
 
-      if (data.status === "success") {
-        setQrValue(data.qr_code || "");
-        setQrExpiry(data.qr_expiration || getDefaultExpiry());
-        setFormId(data.form_id);
-        setSubmitted(true);
-        Alert.alert("Success", "Form submitted successfully.");
-      } else {
+      if (data.status !== "success") {
         Alert.alert("Submission Failed", data.message || "Unknown error.");
+        return;
       }
-    } catch (err) {
-      console.error("Submit error:", err);
-      Alert.alert("Error", err.message || "Something went wrong.");
+
+      const forms = Array.isArray(data.forms) ? data.forms : [];
+      setSavedAnimals(
+        forms.map((animal) => ({
+          ...animal,
+          dssChecked: false,
+          dssMatches: [],
+          severityLabel: "",
+          severityScore: null,
+          severityRating: null,
+          urgent: false,
+        }))
+      );
+      setBatchId(data.batch_id || "");
+      setQrValue(data.qr_code || "");
+      setQrExpiry(data.qr_expiration || getDefaultExpiry());
+      setSubmitted(true);
+      resetAnimalDraft();
+
+      Alert.alert(
+        "Success",
+        `Batch submitted successfully for ${forms.length} animal${
+          forms.length === 1 ? "" : "s"
+        }.`
+      );
+    } catch (error) {
+      console.error("Submit error:", error);
+      Alert.alert("Error", error.message || "Something went wrong.");
     }
   };
 
-  const checkDSS = async () => {
-    if (!formData.remarks || !formId) {
-      Alert.alert(
-        "Error",
-        "Please submit the form first and provide remarks."
-      );
+  const checkDss = async (animal) => {
+    if (!animal.form_id) {
+      Alert.alert("Error", "This animal does not have a saved form ID yet.");
       return;
     }
 
     try {
-      const response = await fetch(
-        apiUrl(apiRoutes.inspector.suggestions),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ remarks: formData.remarks, form_id: formId }),
-        }
+      setActiveDssId(animal.form_id);
+      const response = await fetch(apiUrl(apiRoutes.inspector.suggestions), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remarks: animal.remarks,
+          form_id: animal.form_id,
+        }),
+      });
+
+      const data = await parseJsonResponse(
+        response,
+        "Invalid DSS response from API."
       );
 
-      const data = await response.json();
       if (data.status === "success") {
-        setSuggestions(data.matches || []);
-        setUrgent(
-          data.severity_label === "Severe" || data.severity_score >= 0.6
+        setSavedAnimals((prev) =>
+          prev.map((item) =>
+            item.form_id !== animal.form_id
+              ? item
+              : {
+                  ...item,
+                  dssChecked: true,
+                  dssMatches: Array.isArray(data.matches) ? data.matches : [],
+                  severityLabel: data.severity_label || "",
+                  severityScore:
+                    data.severity_score !== undefined
+                      ? Number(data.severity_score)
+                      : null,
+                  severityRating:
+                    data.severity_rating !== undefined
+                      ? Number(data.severity_rating)
+                      : null,
+                  urgent:
+                    data.severity_label === "Severe" ||
+                    Number(data.severity_score) >= 0.6,
+                }
+          )
         );
-        setShowNewFormButton(true);
-        setDssClicked(true);
-        Alert.alert("DSS Checked", "DSS suggestions retrieved.");
+        Alert.alert("DSS Checked", "Suggestions updated for this animal.");
+      } else if (data.message === "No matches found") {
+        setSavedAnimals((prev) =>
+          prev.map((item) =>
+            item.form_id !== animal.form_id
+              ? item
+              : {
+                  ...item,
+                  dssChecked: true,
+                  dssMatches: [],
+                  severityLabel: "",
+                  severityScore: null,
+                  severityRating: null,
+                  urgent: false,
+                }
+          )
+        );
+        Alert.alert("No DSS match", "No suggestion matched this animal.");
       } else {
-        Alert.alert("Error", data.message || "No suggestions found.");
+        Alert.alert("Error", data.message || "Failed to check DSS.");
       }
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "Failed to check DSS suggestions.");
+    } catch (error) {
+      console.error("DSS error:", error);
+      Alert.alert("Error", error.message || "Failed to check DSS.");
+    } finally {
+      setActiveDssId(null);
     }
   };
 
-  const handleUrgentSchedule = async () => {
+  const openUrgentSchedule = async (animal) => {
     try {
       await AsyncStorage.multiSet([
-        ["selected_form_id", String(formId)],
-        ["selected_form_owner", formData.owner_name],
-        ["selected_form_eartag", formData.animal_unique_identifier],
+        ["selected_form_id", String(animal.form_id)],
+        ["selected_form_owner", animal.owner_name || batchData.owner_name],
+        ["selected_form_eartag", animal.animal_unique_identifier || ""],
+        ["selected_form_address", animal.owner_address || ownerAddress],
         [
-          "selected_form_address",
-          `${formData.owner_barangay}, ${formData.owner_city}, ${formData.owner_province}`,
+          "selected_form_expiration",
+          animal.qr_expiration || qrExpiry || getDefaultExpiry(),
         ],
-        ["selected_form_expiration", qrExpiry || getDefaultExpiry()],
       ]);
+
       router.push("/appointment");
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       Alert.alert("Error", "Unable to open urgent scheduling.");
     }
   };
 
-  const resetForm = () => {
-    setFormData((prev) => createInitialFormData(prev.inspector_issued));
-    setFormId(null);
-    setSuggestions([]);
+  const resetAll = () => {
+    const inspector = batchData.inspector_issued;
+    setBatchData(createBatchData(inspector));
+    setAnimalDraft(createAnimalDraft());
+    setQueuedAnimals([]);
+    setSavedAnimals([]);
+    setEditingId(null);
+    setSubmitted(false);
+    setBatchId("");
     setQrValue("");
     setQrExpiry("");
-    setUrgent(false);
-    setShowNewFormButton(false);
-    setSubmitted(false);
-    setDssClicked(false);
     setSelectedOwner(null);
     setOwnerMatches([]);
     setOwnerLookupLoading(false);
+    setActiveDssId(null);
   };
-
-  const isEditable = !submitted;
-  const statusText = submitted
-    ? urgent
-      ? "Urgent case flagged"
-      : dssClicked
-      ? "DSS reviewed"
-      : "Submitted"
-    : "Draft form";
 
   if (loadingAccount) {
     return (
       <DashboardShell
         eyebrow="Field form creation"
         title="Create livestock form"
-        subtitle="Preparing the inspection form workspace."
+        subtitle="Preparing the inspection workspace."
         summary="Loading account information for the issuing inspector."
       >
-        <View style={styles.loadingCard}>
+        <View style={styles.card}>
           <ActivityIndicator size="large" color={agriPalette.field} />
-          <Text style={styles.loadingTitle}>Loading account information...</Text>
         </View>
       </DashboardShell>
     );
@@ -447,390 +604,344 @@ export default function AddLivestockForm() {
     <DashboardShell
       eyebrow="Field form creation"
       title="Create livestock form"
-      subtitle="Capture livestock details, origin, and movement information in a cleaner mobile-first layout."
-      summary={`${statusText}. ${submitted ? "You can review DSS guidance or continue to scheduling." : "Complete the sections below to submit a new record."}`}
+      subtitle="Submit one batch of animals while keeping DSS and scheduling linked to each animal."
+      summary={
+        submitted
+          ? `${savedAnimals.length} animals submitted${batchId ? ` under ${batchId}` : ""}. ${reviewedCount} reviewed by DSS and ${urgentCount} marked urgent.`
+          : `${queuedAnimals.length} animals queued. Shared owner, origin, transport, and inspection details will apply to every animal in this batch.`
+      }
     >
-      <View style={[styles.metricRow, isTablet && styles.metricRowWide]}>
-        <MetricCard icon="clipboard-text-outline" label="Form status" value={statusText} />
-        <MetricCard
-          icon="account-tie-outline"
-          label="Inspector issued"
-          value={formData.inspector_issued || "Awaiting inspector"}
+      <View style={styles.card}>
+        <Text style={styles.heading}>Batch Details</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Owner name"
+          value={batchData.owner_name}
+          editable={!submitted}
+          onChangeText={onOwnerChange}
         />
-        <MetricCard
-          icon="map-marker-radius-outline"
-          label="Destination"
-          value="Sipocot Abattoir"
-        />
-      </View>
-
-      <View style={[styles.grid, isWide && styles.gridWide]}>
-        <View style={[styles.card, isWide && styles.half]}>
-          <SectionHeader
-            icon="cow"
-            title="Livestock information"
-            subtitle="Species, identification, and inspection timing."
-          />
-
-          <View style={[styles.formRow, isTablet && styles.formRowWide]}>
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Animal species</Text>
-              <View style={[styles.pickerWrap, !isEditable && styles.disabled]}>
-                <Picker
-                  selectedValue={formData.animal_species}
-                  onValueChange={(value) => handleChange("animal_species", value)}
-                  enabled={isEditable}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Select Species" value="" />
-                  <Picker.Item label="Hog" value="Hog" />
-                  <Picker.Item label="Bovine" value="Bovine" />
-                  <Picker.Item label="Cattle" value="Cattle" />
-                </Picker>
-              </View>
+        {ownerLookupLoading ? <Text style={styles.helper}>Searching owners...</Text> : null}
+        {!submitted && ownerMatches.length > 0 ? (
+          <View style={styles.listGap}>
+            {ownerMatches.map((owner) => (
+              <TouchableOpacity
+                key={owner.account_id}
+                style={styles.rowCard}
+                onPress={() => onOwnerSelect(owner)}
+              >
+                <Text style={styles.rowTitle}>{owner.full_name}</Text>
+                <Text style={styles.helper}>{owner.address || "No address"}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
+        <View style={[styles.row, isTablet && styles.rowWide]}>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Owner barangay</Text>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={batchData.owner_barangay}
+                enabled={!submitted}
+                onValueChange={(value) => updateBatchData("owner_barangay", value)}
+              >
+                <Picker.Item label="Select Barangay" value="" />
+                {BARANGAYS.map((barangay) => (
+                  <Picker.Item key={barangay} label={barangay} value={barangay} />
+                ))}
+              </Picker>
             </View>
-
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Unique identifier</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Animal unique identifier"
-                placeholderTextColor="#6F7C67"
-                value={formData.animal_unique_identifier}
-                editable={isEditable}
-                onChangeText={(value) =>
-                  handleChange("animal_unique_identifier", value)
+          </View>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Origin barangay</Text>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={batchData.animal_origin_barangay}
+                enabled={!submitted}
+                onValueChange={(value) =>
+                  updateBatchData("animal_origin_barangay", value)
                 }
-              />
-            </View>
-          </View>
-
-          <View style={[styles.formRow, isTablet && styles.formRowWide]}>
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Live weight (kg)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Live weight"
-                placeholderTextColor="#6F7C67"
-                keyboardType="numeric"
-                value={formData.live_weight}
-                editable={isEditable}
-                onChangeText={(value) => handleChange("live_weight", value)}
-              />
-            </View>
-
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Purpose</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Purpose"
-                placeholderTextColor="#6F7C67"
-                value={formData.purpose}
-                editable={isEditable}
-                onChangeText={(value) => handleChange("purpose", value)}
-              />
-            </View>
-          </View>
-
-          <View style={[styles.formRow, isTablet && styles.formRowWide]}>
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Inspection start time</Text>
-              <TouchableOpacity
-                style={[styles.timeField, !isEditable && styles.disabled]}
-                onPress={isEditable ? () => openTimePicker("inspection_time_start") : undefined}
               >
-                <MaterialCommunityIcons
-                  name="clock-outline"
-                  size={18}
-                  color={agriPalette.field}
-                />
-                <Text style={styles.timeText}>
-                  {formData.inspection_time_start || "Select time"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Inspection end time</Text>
-              <TouchableOpacity
-                style={[styles.timeField, !isEditable && styles.disabled]}
-                onPress={isEditable ? () => openTimePicker("inspection_time_end") : undefined}
-              >
-                <MaterialCommunityIcons
-                  name="clock-outline"
-                  size={18}
-                  color={agriPalette.field}
-                />
-                <Text style={styles.timeText}>
-                  {formData.inspection_time_end || "Select time"}
-                </Text>
-              </TouchableOpacity>
+                <Picker.Item label="Select Barangay" value="" />
+                {BARANGAYS.map((barangay) => (
+                  <Picker.Item key={barangay} label={barangay} value={barangay} />
+                ))}
+              </Picker>
             </View>
           </View>
         </View>
-
-        <View style={[styles.card, isWide && styles.half]}>
-          <SectionHeader
-            icon="home-city-outline"
-            title="Owner and origin"
-            subtitle="Owner identity and barangay information."
-          />
-
-          <Text style={styles.label}>Owner name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Owner name"
-            placeholderTextColor="#6F7C67"
-            value={formData.owner_name}
-            editable={isEditable}
-            onChangeText={handleOwnerNameChange}
-          />
-
-          <Text style={styles.lookupHint}>
-            Type at least 2 letters to link a registered owner, or keep typing
-            for a manual name.
-          </Text>
-
-          {selectedOwner ? (
-            <View style={styles.ownerLinkedCard}>
-              <View style={styles.ownerLinkedInfo}>
-                <Text style={styles.ownerLinkedEyebrow}>Registered owner linked</Text>
-                <Text style={styles.ownerLinkedName}>{selectedOwner.full_name}</Text>
-                <Text style={styles.ownerLinkedMeta}>
-                  Account #{selectedOwner.account_id}
-                  {selectedOwner.email ? ` | ${selectedOwner.email}` : ""}
-                </Text>
-              </View>
-              {isEditable ? (
-                <TouchableOpacity onPress={() => setSelectedOwner(null)}>
-                  <Text style={styles.ownerLinkedAction}>Unlink</Text>
-                </TouchableOpacity>
-              ) : null}
+        <View style={[styles.row, isTablet && styles.rowWide]}>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Inspection start</Text>
+            <TouchableOpacity
+              style={styles.input}
+              disabled={submitted}
+              onPress={() => {
+                setTimeKey("inspection_time_start");
+                setTimePickerVisible(true);
+              }}
+            >
+              <Text>{batchData.inspection_time_start || "Select time"}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Inspection end</Text>
+            <TouchableOpacity
+              style={styles.input}
+              disabled={submitted}
+              onPress={() => {
+                setTimeKey("inspection_time_end");
+                setTimePickerVisible(true);
+              }}
+            >
+              <Text>{batchData.inspection_time_end || "Select time"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Animal destination"
+          value={batchData.animal_destination}
+          editable={!submitted}
+          onChangeText={(value) => updateBatchData("animal_destination", value)}
+        />
+        <View style={[styles.row, isTablet && styles.rowWide]}>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Vehicle used</Text>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={batchData.vehicle_used}
+                enabled={!submitted}
+                onValueChange={(value) => updateBatchData("vehicle_used", value)}
+              >
+                <Picker.Item label="Select Vehicle" value="" />
+                <Picker.Item label="Jeep" value="Jeep" />
+                <Picker.Item label="Hauler" value="Hauler" />
+              </Picker>
             </View>
-          ) : null}
+          </View>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Paid number</Text>
+            <TextInput
+              style={styles.input}
+              value={batchData.paid_number}
+              editable={!submitted}
+              onChangeText={(value) => updateBatchData("paid_number", value)}
+            />
+          </View>
+        </View>
+      </View>
 
-          {ownerLookupLoading ? (
-            <View style={styles.ownerLookupState}>
-              <ActivityIndicator size="small" color={agriPalette.field} />
-              <Text style={styles.ownerLookupText}>Searching registered owners...</Text>
+      <View style={styles.card}>
+        <Text style={styles.heading}>{editingId ? "Edit Animal" : "Add Animal"}</Text>
+        <View style={[styles.row, isTablet && styles.rowWide]}>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Species</Text>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={animalDraft.animal_species}
+                enabled={!submitted}
+                onValueChange={(value) => updateAnimalDraft("animal_species", value)}
+              >
+                <Picker.Item label="Select Species" value="" />
+                <Picker.Item label="Hog" value="Hog" />
+                <Picker.Item label="Bovine" value="Bovine" />
+                <Picker.Item label="Cattle" value="Cattle" />
+              </Picker>
             </View>
-          ) : null}
+          </View>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Unique identifier</Text>
+            <TextInput
+              style={styles.input}
+              value={animalDraft.animal_unique_identifier}
+              editable={!submitted}
+              onChangeText={(value) =>
+                updateAnimalDraft("animal_unique_identifier", value)
+              }
+            />
+          </View>
+        </View>
+        <View style={[styles.row, isTablet && styles.rowWide]}>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Live weight</Text>
+            <TextInput
+              style={styles.input}
+              value={animalDraft.live_weight}
+              editable={!submitted}
+              keyboardType="numeric"
+              onChangeText={(value) => updateAnimalDraft("live_weight", value)}
+            />
+          </View>
+          <View style={styles.flexItem}>
+            <Text style={styles.label}>Purpose</Text>
+            <TextInput
+              style={styles.input}
+              value={animalDraft.purpose}
+              editable={!submitted}
+              onChangeText={(value) => updateAnimalDraft("purpose", value)}
+            />
+          </View>
+        </View>
+        <Text style={styles.label}>Remarks</Text>
+        <TextInput
+          style={[styles.input, styles.remarks]}
+          value={animalDraft.remarks}
+          editable={!submitted}
+          multiline
+          onChangeText={(value) => updateAnimalDraft("remarks", value)}
+        />
+        {!submitted ? (
+          <View style={styles.listGap}>
+            <AgriButton
+              title={editingId ? "Update queued animal" : "Add animal to batch"}
+              subtitle="Keep DSS linked to this animal by saving its own remarks"
+              icon="plus-circle-outline"
+              compact
+              onPress={queueAnimal}
+            />
+            {editingId ? (
+              <TouchableOpacity onPress={resetAnimalDraft}>
+                <Text style={styles.linkText}>Cancel edit</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
 
-          {!selectedOwner && ownerMatches.length > 0 ? (
-            <View style={styles.ownerSuggestionList}>
-              {ownerMatches.map((owner) => (
-                <TouchableOpacity
-                  key={owner.account_id}
-                  style={styles.ownerSuggestionItem}
-                  onPress={() => handleOwnerSelect(owner)}
-                >
-                  <View style={styles.ownerSuggestionTextWrap}>
-                    <Text style={styles.ownerSuggestionName}>{owner.full_name}</Text>
-                    <Text style={styles.ownerSuggestionMeta}>
-                      Account #{owner.account_id}
-                      {owner.address ? ` | ${owner.address}` : ""}
+      <View style={styles.card}>
+        <Text style={styles.heading}>
+          {submitted ? "Submitted Animals" : "Queued Animals"}
+        </Text>
+        {(submitted ? savedAnimals : queuedAnimals).length === 0 ? (
+          <Text style={styles.helper}>No animals added yet.</Text>
+        ) : (
+          <View style={styles.listGap}>
+            {(submitted ? savedAnimals : queuedAnimals).map((animal) => (
+              <View key={animal.form_id || animal.id} style={styles.rowCard}>
+                <View style={styles.rowHeader}>
+                  <View style={styles.flexItem}>
+                    <Text style={styles.rowTitle}>
+                      {animal.animal_species} • {animal.animal_unique_identifier}
+                    </Text>
+                    <Text style={styles.helper}>
+                      {animal.live_weight} kg | {animal.purpose}
+                      {animal.form_id ? ` | Form #${animal.form_id}` : ""}
                     </Text>
                   </View>
-                  <MaterialCommunityIcons
-                    name="arrow-top-right"
-                    size={18}
-                    color={agriPalette.field}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : null}
-
-          {!selectedOwner &&
-          !ownerLookupLoading &&
-          normalizeLookupValue(formData.owner_name).length >= 2 &&
-          ownerMatches.length === 0 ? (
-            <Text style={styles.lookupEmptyText}>
-              No registered owner matched this name yet. You can still continue
-              with a manual owner entry.
-            </Text>
-          ) : null}
-
-          <View style={[styles.formRow, isTablet && styles.formRowWide]}>
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Owner barangay</Text>
-              <View style={[styles.pickerWrap, !isEditable && styles.disabled]}>
-                <Picker
-                  selectedValue={formData.owner_barangay}
-                  onValueChange={(value) => handleChange("owner_barangay", value)}
-                  enabled={isEditable}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Select Barangay" value="" />
-                  {BARANGAYS.map((barangay) => (
-                    <Picker.Item
-                      key={barangay}
-                      label={barangay}
-                      value={barangay}
+                  <View
+                    style={[
+                      styles.chip,
+                      animal.urgent && styles.chipDanger,
+                    ]}
+                  >
+                    <Text style={styles.chipText}>
+                      {animal.urgent
+                        ? "Urgent"
+                        : animal.dssChecked
+                        ? animal.severityLabel || "Reviewed"
+                        : submitted
+                        ? "Awaiting DSS"
+                        : "Queued"}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.helper}>{animal.remarks}</Text>
+                {!submitted ? (
+                  <View style={styles.inlineActions}>
+                    <TouchableOpacity onPress={() => editQueuedAnimal(animal)}>
+                      <Text style={styles.linkText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => removeQueuedAnimal(animal.id)}
+                    >
+                      <Text style={[styles.linkText, styles.linkDanger]}>
+                        Remove
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.listGap}>
+                    <AgriButton
+                      title={animal.dssChecked ? "Check DSS again" : "Check DSS"}
+                      subtitle="Save DSS findings for this specific animal"
+                      icon="stethoscope"
+                      variant="secondary"
+                      compact
+                      loading={activeDssId === animal.form_id}
+                      onPress={() => checkDss(animal)}
                     />
-                  ))}
-                </Picker>
+                    {animal.urgent ? (
+                      <AgriButton
+                        title="Urgent schedule"
+                        subtitle="Open appointment booking for this animal"
+                        icon="alarm-light-outline"
+                        variant="danger"
+                        compact
+                        onPress={() => openUrgentSchedule(animal)}
+                      />
+                    ) : null}
+                    {animal.dssChecked && animal.dssMatches.length > 0 ? (
+                      <View style={styles.listGap}>
+                        {animal.dssMatches.map((match, index) => (
+                          <View key={`${animal.form_id}-${index}`} style={styles.matchCard}>
+                            <Text style={styles.rowTitle}>{match.keyword}</Text>
+                            <Text style={styles.helper}>{match.suggestion}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                )}
               </View>
-            </View>
-
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Animal origin barangay</Text>
-              <View style={[styles.pickerWrap, !isEditable && styles.disabled]}>
-                <Picker
-                  selectedValue={formData.animal_origin_barangay}
-                  onValueChange={(value) =>
-                    handleChange("animal_origin_barangay", value)
-                  }
-                  enabled={isEditable}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Select Barangay" value="" />
-                  {BARANGAYS.map((barangay) => (
-                    <Picker.Item
-                      key={barangay}
-                      label={barangay}
-                      value={barangay}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
+            ))}
           </View>
-        </View>
-
-        <View style={[styles.card, isWide && styles.full]}>
-          <SectionHeader
-            icon="truck-delivery-outline"
-            title="Vehicle, payment, and remarks"
-            subtitle="Transport details, issuing inspector, and clinical notes."
-          />
-
-          <View style={[styles.formRow, isTablet && styles.formRowWide]}>
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Vehicle used</Text>
-              <View style={[styles.pickerWrap, !isEditable && styles.disabled]}>
-                <Picker
-                  selectedValue={formData.vehicle_used}
-                  onValueChange={(value) => handleChange("vehicle_used", value)}
-                  enabled={isEditable}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Select Vehicle" value="" />
-                  <Picker.Item label="Jeep" value="Jeep" />
-                  <Picker.Item label="Hauler" value="Hauler" />
-                </Picker>
-              </View>
-            </View>
-
-            <View style={styles.formCol}>
-              <Text style={styles.label}>Paid number</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Paid number"
-                placeholderTextColor="#6F7C67"
-                value={formData.paid_number}
-                editable={isEditable}
-                onChangeText={(value) => handleChange("paid_number", value)}
-              />
-            </View>
-          </View>
-
-          <Text style={styles.label}>Inspector issued</Text>
-          <TextInput
-            style={[styles.input, styles.disabled]}
-            placeholder="Inspector issued"
-            placeholderTextColor="#6F7C67"
-            value={formData.inspector_issued}
-            editable={false}
-          />
-
-          <Text style={styles.label}>Remarks</Text>
-          <TextInput
-            style={[styles.input, styles.remarks]}
-            placeholder="Describe animal condition, symptoms, or field notes"
-            placeholderTextColor="#6F7C67"
-            multiline
-            value={formData.remarks}
-            editable={isEditable}
-            onChangeText={(value) => handleChange("remarks", value)}
-          />
-        </View>
+        )}
       </View>
 
-      <View style={styles.actionCard}>
-        <Text style={styles.cardEyebrow}>Next actions</Text>
-        <Text style={styles.cardTitle}>Submit, assess, and continue</Text>
-        <View style={styles.actionStack}>
-          {!submitted ? (
-            <AgriButton
-              title="Submit form"
-              subtitle="Create the livestock record and generate the QR permit"
-              icon="file-check-outline"
-              onPress={handleSubmit}
-            />
-          ) : null}
-
-          {submitted && !dssClicked ? (
-            <AgriButton
-              title="Check DSS"
-              subtitle="Review symptom suggestions and severity guidance"
-              icon="stethoscope"
-              variant="secondary"
-              onPress={checkDSS}
-            />
-          ) : null}
-
-          {urgent ? (
-            <AgriButton
-              title="Urgent schedule"
-              subtitle="Open the appointment screen with this form preloaded"
-              icon="alarm-light-outline"
-              variant="danger"
-              onPress={handleUrgentSchedule}
-            />
-          ) : null}
-
-          {showNewFormButton ? (
-            <AgriButton
-              title="Create new form"
-              subtitle="Reset this workspace for another livestock record"
-              icon="note-plus-outline"
-              variant="sky"
-              onPress={resetForm}
-            />
-          ) : null}
-        </View>
+      <View style={styles.listGap}>
+        {!submitted ? (
+          <AgriButton
+            title="Submit batch"
+            subtitle={`Create ${queuedAnimals.length} livestock record${
+              queuedAnimals.length === 1 ? "" : "s"
+            } in one submission`}
+            icon="file-check-outline"
+            onPress={submitBatch}
+            disabled={queuedAnimals.length === 0}
+          />
+        ) : (
+          <AgriButton
+            title="Start new batch"
+            subtitle="Reset this workspace for another group of animals"
+            icon="note-plus-outline"
+            variant="sky"
+            onPress={resetAll}
+          />
+        )}
+        {!submitted ? (
+          <AgriButton
+            title="Reset draft"
+            subtitle="Clear the current batch and animal entry"
+            icon="refresh"
+            variant="muted"
+            lightText={false}
+            onPress={resetAll}
+            disabled={
+              queuedAnimals.length === 0 &&
+              !hasDraftValues(animalDraft) &&
+              !normalizeValue(batchData.owner_name)
+            }
+          />
+        ) : null}
       </View>
-
-      {dssClicked ? (
-        <View style={styles.card}>
-          <Text style={styles.cardEyebrow}>DSS result</Text>
-          <Text style={styles.cardTitle}>Clinical suggestion panel</Text>
-          {suggestions.length > 0 ? (
-            suggestions.map((suggestion, index) => (
-              <View key={`${suggestion.keyword}-${index}`} style={styles.suggestionCard}>
-                <Text style={styles.suggestionTitle}>Keyword: {suggestion.keyword}</Text>
-                <Text style={styles.suggestionStrength}>
-                  Match strength: {(suggestion.match_strength * 100).toFixed(1)}%
-                </Text>
-                <Text style={styles.suggestionText}>{suggestion.suggestion}</Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.emptyText}>
-              No matching symptoms were found for the provided remarks.
-            </Text>
-          )}
-        </View>
-      ) : null}
 
       {qrValue ? (
         <View style={[styles.card, styles.qrCard]}>
-          <Text style={styles.cardEyebrow}>Generated QR</Text>
-          <Text style={styles.cardTitle}>Permit token ready for use</Text>
-          <Text style={styles.qrCopy}>
-            Keep this code available for verification and scheduling. It is
-            valid until {new Date(qrExpiry).toLocaleString()}.
+          <Text style={styles.heading}>Batch QR</Text>
+          <Text style={styles.helper}>
+            This QR is shared across the submitted batch, while each animal
+            keeps its own form ID for DSS and scheduling. It is valid until{" "}
+            {new Date(qrExpiry).toLocaleString()}.
           </Text>
           <View style={styles.qrSurface}>
             <QRCode
@@ -846,352 +957,144 @@ export default function AddLivestockForm() {
       <DateTimePickerModal
         isVisible={timePickerVisible}
         mode="time"
-        onConfirm={handleTimeConfirm}
-        onCancel={() => setTimePickerVisible(false)}
+        onConfirm={(date) => {
+          const timeString = date.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+
+          updateBatchData(timeKey, timeString);
+          setTimePickerVisible(false);
+          setTimeKey("");
+        }}
+        onCancel={() => {
+          setTimePickerVisible(false);
+          setTimeKey("");
+        }}
       />
     </DashboardShell>
   );
 }
 
-function SectionHeader({ icon, title, subtitle }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionIcon}>
-        <MaterialCommunityIcons name={icon} size={22} color={agriPalette.fieldDeep} />
-      </View>
-      <View style={styles.sectionText}>
-        <Text style={styles.cardEyebrow}>Form section</Text>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.sectionSubtitle}>{subtitle}</Text>
-      </View>
-    </View>
-  );
-}
-
-function MetricCard({ icon, label, value }) {
-  return (
-    <View style={styles.metricCard}>
-      <MaterialCommunityIcons name={icon} size={20} color={agriPalette.fieldDeep} />
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  loadingCard: {
-    backgroundColor: agriPalette.surface,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    padding: 28,
-    alignItems: "center",
-  },
-  loadingTitle: {
-    marginTop: 16,
-    fontSize: 22,
-    fontWeight: "900",
-    color: agriPalette.ink,
-  },
-  metricRow: {
-    gap: 12,
-    marginBottom: 18,
-  },
-  metricRowWide: {
-    flexDirection: "row",
-  },
-  metricCard: {
-    flex: 1,
-    minWidth: 170,
-    backgroundColor: agriPalette.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    padding: 16,
-  },
-  metricLabel: {
-    marginTop: 12,
-    fontSize: 12,
-    fontWeight: "800",
-    color: agriPalette.inkSoft,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  metricValue: {
-    marginTop: 8,
-    color: agriPalette.ink,
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: "900",
-  },
-  grid: {
-    gap: 16,
-  },
-  gridWide: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  half: {
-    width: "48.9%",
-  },
-  full: {
-    width: "100%",
-  },
   card: {
     backgroundColor: agriPalette.surface,
-    borderRadius: 30,
+    borderRadius: 28,
     borderWidth: 1,
     borderColor: agriPalette.border,
-    padding: 20,
+    padding: 18,
+    marginBottom: 16,
   },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  sectionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F1E7CF",
-    marginRight: 12,
-  },
-  sectionText: {
-    flex: 1,
-  },
-  cardEyebrow: {
-    color: agriPalette.field,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-  },
-  cardTitle: {
-    marginTop: 8,
+  heading: {
     color: agriPalette.ink,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
-  },
-  sectionSubtitle: {
-    marginTop: 8,
-    color: agriPalette.inkSoft,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  formRow: {
-    gap: 12,
-  },
-  formRowWide: {
-    flexDirection: "row",
-  },
-  formCol: {
-    flex: 1,
+    marginBottom: 12,
   },
   label: {
-    marginTop: 16,
-    marginBottom: 8,
     color: agriPalette.fieldDeep,
     fontSize: 13,
     fontWeight: "800",
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
     borderColor: agriPalette.border,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    backgroundColor: "#FCFAF4",
-    color: agriPalette.ink,
-    fontSize: 15,
-  },
-  lookupHint: {
-    marginTop: 8,
-    color: agriPalette.inkSoft,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  ownerLinkedCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginTop: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    backgroundColor: "#F4F7EE",
+    borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
-  },
-  ownerLinkedInfo: {
-    flex: 1,
-  },
-  ownerLinkedEyebrow: {
-    color: agriPalette.field,
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  ownerLinkedName: {
-    marginTop: 6,
-    color: agriPalette.ink,
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  ownerLinkedMeta: {
-    marginTop: 4,
-    color: agriPalette.inkSoft,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  ownerLinkedAction: {
-    color: agriPalette.redClay,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  ownerLookupState: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-  },
-  ownerLookupText: {
-    color: agriPalette.field,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  ownerSuggestionList: {
-    marginTop: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    backgroundColor: agriPalette.surface,
-    overflow: "hidden",
-  },
-  ownerSuggestionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: agriPalette.border,
-  },
-  ownerSuggestionTextWrap: {
-    flex: 1,
-  },
-  ownerSuggestionName: {
-    color: agriPalette.ink,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  ownerSuggestionMeta: {
-    marginTop: 4,
-    color: agriPalette.inkSoft,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  lookupEmptyText: {
-    marginTop: 12,
-    color: agriPalette.inkSoft,
-    fontSize: 13,
-    lineHeight: 19,
+    backgroundColor: "#FCFAF4",
+    marginBottom: 12,
   },
   remarks: {
-    minHeight: 110,
+    minHeight: 96,
     textAlignVertical: "top",
   },
   pickerWrap: {
     borderWidth: 1,
     borderColor: agriPalette.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#FCFAF4",
+    marginBottom: 12,
   },
-  picker: {
-    height: 52,
-    width: "100%",
-  },
-  timeField: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    backgroundColor: "#FCFAF4",
-  },
-  timeText: {
-    marginLeft: 10,
-    color: agriPalette.ink,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  disabled: {
-    opacity: 0.72,
-  },
-  actionCard: {
-    backgroundColor: agriPalette.surface,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    padding: 22,
-    marginTop: 18,
-  },
-  actionStack: {
+  row: {
     gap: 12,
-    marginTop: 14,
   },
-  suggestionCard: {
-    borderRadius: 22,
+  rowWide: {
+    flexDirection: "row",
+  },
+  flexItem: {
+    flex: 1,
+  },
+  helper: {
+    color: agriPalette.inkSoft,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  listGap: {
+    gap: 12,
+  },
+  rowCard: {
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: agriPalette.border,
-    backgroundColor: "#FCF7EB",
-    padding: 16,
-    marginTop: 14,
+    backgroundColor: "#FCF9F1",
+    padding: 14,
   },
-  suggestionTitle: {
+  rowHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 8,
+  },
+  rowTitle: {
     color: agriPalette.ink,
     fontSize: 16,
     fontWeight: "800",
   },
-  suggestionStrength: {
-    marginTop: 6,
+  chip: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F2E4BD",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  chipDanger: {
+    backgroundColor: agriPalette.redClay,
+  },
+  chipText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  inlineActions: {
+    flexDirection: "row",
+    gap: 18,
+    marginTop: 10,
+  },
+  linkText: {
     color: agriPalette.field,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  suggestionText: {
-    marginTop: 10,
-    color: agriPalette.inkSoft,
-    fontSize: 14,
-    lineHeight: 21,
+  linkDanger: {
+    color: agriPalette.redClay,
   },
-  emptyText: {
-    marginTop: 14,
-    color: agriPalette.inkSoft,
-    fontSize: 15,
-    lineHeight: 22,
+  matchCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    backgroundColor: "#FCF7EB",
+    padding: 12,
   },
   qrCard: {
     alignItems: "center",
-    marginTop: 18,
-  },
-  qrCopy: {
-    marginTop: 10,
-    textAlign: "center",
-    color: agriPalette.inkSoft,
-    fontSize: 15,
-    lineHeight: 22,
   },
   qrSurface: {
-    marginTop: 20,
+    marginTop: 16,
     padding: 18,
-    borderRadius: 28,
+    borderRadius: 24,
     backgroundColor: agriPalette.white,
   },
 });
