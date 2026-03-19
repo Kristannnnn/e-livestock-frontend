@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 import QRCode from "react-native-qrcode-svg";
 import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
@@ -21,6 +22,7 @@ import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
 import { agriPalette } from "../../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.owner.forms);
+const RENEWAL_REQUEST_URL = apiUrl(apiRoutes.renewals.request);
 
 const filterOptions = ["All", "Active QR", "Expired QR"];
 
@@ -138,6 +140,18 @@ function formatDateLabel(dateValue) {
   });
 }
 
+function formatLocalDateValue(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeRenewalStatus(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 export default function Stockyard() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -151,8 +165,12 @@ export default function Stockyard() {
   const [loadError, setLoadError] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedForm, setSelectedForm] = useState(null);
+  const [accountId, setAccountId] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [renewalPickerVisible, setRenewalPickerVisible] = useState(false);
+  const [renewalTargetForm, setRenewalTargetForm] = useState(null);
+  const [requestingRenewalId, setRequestingRenewalId] = useState(null);
 
   useEffect(() => {
     const loadSessionAndForms = async () => {
@@ -169,6 +187,9 @@ export default function Stockyard() {
         }
         if (lastNameValue) {
           setLastName(lastNameValue);
+        }
+        if (accountId) {
+          setAccountId(accountId);
         }
 
         const data = await requestForms({
@@ -296,6 +317,77 @@ export default function Stockyard() {
   const openModal = (form) => {
     setSelectedForm(form);
     setModalVisible(true);
+  };
+
+  const openRenewalRequest = (form) => {
+    if (!accountId) {
+      Alert.alert("Error", "Your account could not be loaded for renewal.");
+      return;
+    }
+
+    setRenewalTargetForm(form);
+    setRenewalPickerVisible(true);
+  };
+
+  const closeRenewalPicker = () => {
+    setRenewalPickerVisible(false);
+    setRenewalTargetForm(null);
+  };
+
+  const submitRenewalRequest = async (selectedDate) => {
+    if (!renewalTargetForm) {
+      closeRenewalPicker();
+      return;
+    }
+
+    try {
+      setRequestingRenewalId(renewalTargetForm.form_id);
+      closeRenewalPicker();
+
+      const response = await fetch(RENEWAL_REQUEST_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account_id: Number.parseInt(accountId, 10),
+          form_id: renewalTargetForm.form_id,
+          requested_date: formatLocalDateValue(selectedDate),
+        }),
+      });
+
+      const data = await parseJsonResponse(
+        response,
+        `Renewal request failed (HTTP ${response.status}).`
+      );
+
+      if (data.status !== "success") {
+        Alert.alert(
+          "Renewal request failed",
+          data.message || "Unable to schedule the renewal request."
+        );
+        return;
+      }
+
+      Alert.alert(
+        "Renewal scheduled",
+        `Your renewal request was scheduled for ${formatDateLabel(
+          data.requested_date
+        )}.`
+      );
+
+      await fetchForms({
+        accountId,
+        firstName,
+        lastName,
+      });
+    } catch (error) {
+      console.error(error);
+      Alert.alert(
+        "Renewal request failed",
+        error.message || "Unable to schedule the renewal request."
+      );
+    } finally {
+      setRequestingRenewalId(null);
+    }
   };
 
   const activeCount = forms.filter(
@@ -449,6 +541,52 @@ export default function Stockyard() {
                   item.is_expired
                 );
                 const qrMeta = getDaysRemaining(item.qr_expiration);
+                const renewalStatus = normalizeRenewalStatus(
+                  item.renewal_status
+                );
+                const renewalPending = renewalStatus === "pending";
+                const renewalCompleted = renewalStatus === "completed";
+                const renewalCancelled = renewalStatus === "cancelled";
+                const showRenewalPanel =
+                  expired &&
+                  (renewalPending || renewalCompleted || renewalCancelled);
+                const renewalButtonTitle = expired
+                  ? renewalPending
+                    ? "Renewal requested"
+                    : renewalCompleted
+                      ? "Renewal completed"
+                      : renewalCancelled
+                        ? "Request renewal again"
+                        : "Request renewal"
+                  : "Create schedule";
+                const renewalButtonSubtitle = expired
+                  ? renewalPending
+                    ? `Scheduled for ${formatDateLabel(
+                        item.renewal_requested_date
+                      )}`
+                    : renewalCompleted
+                      ? item.renewed_form_id
+                        ? `Updated under form #${item.renewed_form_id}`
+                        : "The inspector already completed this renewal."
+                      : renewalCancelled
+                        ? item.renewal_cancel_reason ||
+                          "The previous renewal schedule was cancelled."
+                        : "Choose the date when you want the inspector to renew it"
+                  : "Book an appointment for this livestock form";
+                const renewalButtonIcon = expired
+                  ? renewalPending
+                    ? "calendar-clock-outline"
+                    : renewalCompleted
+                      ? "check-decagram-outline"
+                      : "calendar-plus-outline"
+                  : "calendar-plus-outline";
+                const renewalButtonVariant = expired
+                  ? renewalPending || renewalCompleted
+                    ? "muted"
+                    : "earth"
+                  : "sky";
+                const renewalButtonDisabled =
+                  expired && (renewalPending || renewalCompleted);
 
                 return (
                   <View key={item.form_id} style={styles.formCard}>
@@ -559,6 +697,50 @@ export default function Stockyard() {
                             {qrMeta}
                           </Text>
                         </View>
+
+                        {showRenewalPanel ? (
+                          <View
+                            style={[
+                              styles.renewalPanel,
+                              renewalCancelled && styles.renewalPanelCancelled,
+                            ]}
+                          >
+                            <MaterialCommunityIcons
+                              name={
+                                renewalPending
+                                  ? "calendar-clock-outline"
+                                  : renewalCompleted
+                                    ? "check-decagram-outline"
+                                    : "calendar-remove-outline"
+                              }
+                              size={16}
+                              color={
+                                renewalPending
+                                  ? agriPalette.fieldDeep
+                                  : renewalCompleted
+                                    ? agriPalette.field
+                                    : agriPalette.redClay
+                              }
+                            />
+                            <Text
+                              style={[
+                                styles.renewalPanelText,
+                                renewalCancelled && styles.renewalPanelTextCancelled,
+                              ]}
+                            >
+                              {renewalPending
+                                ? `Renewal requested for ${formatDateLabel(
+                                    item.renewal_requested_date
+                                  )}`
+                                : renewalCompleted
+                                  ? item.renewed_form_id
+                                    ? `Renewal completed with form #${item.renewed_form_id}.`
+                                    : "Renewal already completed for this record."
+                                  : item.renewal_cancel_reason ||
+                                    "Renewal request cancelled."}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
 
                       <View
@@ -596,22 +778,20 @@ export default function Stockyard() {
                         onPress={() => openModal(item)}
                       />
                       <AgriButton
-                        title={expired ? "Renew record first" : "Create schedule"}
-                        subtitle={
-                          expired
-                            ? "Expired QR permits cannot be scheduled"
-                            : "Book an appointment for this livestock form"
-                        }
-                        icon={
-                          expired
-                            ? "calendar-remove-outline"
-                            : "calendar-plus-outline"
-                        }
-                        variant={expired ? "muted" : "sky"}
+                        title={renewalButtonTitle}
+                        subtitle={renewalButtonSubtitle}
+                        icon={renewalButtonIcon}
+                        variant={renewalButtonVariant}
                         compact
                         trailingIcon={expired ? false : "arrow-right"}
-                        disabled={expired}
-                        onPress={() => goToAppointment(item)}
+                        disabled={
+                          renewalButtonDisabled ||
+                          requestingRenewalId === item.form_id
+                        }
+                        loading={requestingRenewalId === item.form_id}
+                        onPress={() =>
+                          expired ? openRenewalRequest(item) : goToAppointment(item)
+                        }
                       />
                     </View>
                   </View>
@@ -639,6 +819,14 @@ export default function Stockyard() {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         form={selectedForm}
+      />
+
+      <DateTimePickerModal
+        isVisible={renewalPickerVisible}
+        mode="date"
+        minimumDate={new Date()}
+        onConfirm={submitRenewalRequest}
+        onCancel={closeRenewalPicker}
       />
     </DashboardShell>
   );
@@ -853,6 +1041,30 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   expiryPanelTextExpired: {
+    color: agriPalette.redClay,
+  },
+  renewalPanel: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "#FFF4D6",
+  },
+  renewalPanelCancelled: {
+    backgroundColor: "#F7E1D5",
+  },
+  renewalPanelText: {
+    flex: 1,
+    color: "#8A6510",
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 19,
+  },
+  renewalPanelTextCancelled: {
     color: agriPalette.redClay,
   },
   qrCard: {

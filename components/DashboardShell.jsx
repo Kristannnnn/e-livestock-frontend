@@ -1,6 +1,36 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { agriPalette } from "../constants/agriTheme";
+
+function buildEmptySessionProfile() {
+  return {
+    firstName: "",
+    lastName: "",
+    role: "",
+    profilePicture: "",
+  };
+}
+
+function getProfileInitials(firstName, lastName) {
+  const initials = `${(firstName || "").trim().charAt(0)}${(lastName || "")
+    .trim()
+    .charAt(0)}`.toUpperCase();
+
+  return initials || "U";
+}
+
+function formatRoleLabel(role) {
+  const roleMap = {
+    user: "Livestock owner",
+    livestockInspector: "Livestock inspector",
+    AntemortemInspector: "Antemortem inspector",
+    admin: "Administrator",
+  };
+
+  return roleMap[role] || "Account user";
+}
 
 export default function DashboardShell({
   eyebrow,
@@ -10,7 +40,92 @@ export default function DashboardShell({
   children,
   contentContainerStyle,
   refreshControl,
+  profilePlacement = "none",
 }) {
+  const [sessionProfile, setSessionProfile] = useState(buildEmptySessionProfile);
+
+  useEffect(() => {
+    if (profilePlacement === "none") {
+      setSessionProfile(buildEmptySessionProfile());
+      return undefined;
+    }
+
+    let mounted = true;
+
+    const loadSessionProfile = async () => {
+      try {
+        const [storedUser, storedFirstName, storedLastName, storedRole] =
+          await Promise.all([
+            AsyncStorage.getItem("user"),
+            AsyncStorage.getItem("first_name"),
+            AsyncStorage.getItem("last_name"),
+            AsyncStorage.getItem("role"),
+          ]);
+
+        const parsedUser = storedUser ? JSON.parse(storedUser) : {};
+
+        if (!mounted) {
+          return;
+        }
+
+        setSessionProfile({
+          firstName: parsedUser.first_name || storedFirstName || "",
+          lastName: parsedUser.last_name || storedLastName || "",
+          role: parsedUser.account_type || storedRole || "",
+          profilePicture: parsedUser.profile_picture || "",
+        });
+      } catch (error) {
+        console.error("Failed to load dashboard profile:", error);
+      }
+    };
+
+    loadSessionProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [profilePlacement]);
+
+  const displayName = `${sessionProfile.firstName} ${sessionProfile.lastName}`.trim();
+  const roleLabel = formatRoleLabel(sessionProfile.role);
+  const showInlineProfile = profilePlacement === "inlineTitle";
+  const showProfilePanel = profilePlacement === "panel";
+
+  const profileAvatar = (
+    <View
+      style={[
+        styles.profileAvatarShell,
+        showInlineProfile && styles.profileAvatarShellInline,
+      ]}
+    >
+      {sessionProfile.profilePicture ? (
+        <Image
+          source={{ uri: sessionProfile.profilePicture }}
+          style={[
+            styles.profileAvatar,
+            showInlineProfile && styles.profileAvatarInline,
+          ]}
+        />
+      ) : (
+        <View
+          style={[
+            styles.profileFallback,
+            showInlineProfile && styles.profileFallbackInline,
+          ]}
+        >
+          <Text
+            style={[
+              styles.profileFallbackText,
+              showInlineProfile && styles.profileFallbackTextInline,
+            ]}
+          >
+            {getProfileInitials(sessionProfile.firstName, sessionProfile.lastName)}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <View style={styles.screen}>
       <LinearGradient
@@ -28,14 +143,40 @@ export default function DashboardShell({
         >
           <View style={styles.maxWidth}>
             <View style={styles.heroCard}>
-              {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-              <Text style={styles.title}>{title}</Text>
-              {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-              {summary ? (
-                <View style={styles.summaryPill}>
-                  <Text style={styles.summaryText}>{summary}</Text>
+              <View style={styles.heroContent}>
+                <View style={styles.heroTextWrap}>
+                  {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
+                  <View style={showInlineProfile && styles.inlineTitleRow}>
+                    {showInlineProfile ? profileAvatar : null}
+                    <View style={showInlineProfile && styles.inlineTitleTextWrap}>
+                      <Text style={styles.title}>{title}</Text>
+                      {showInlineProfile ? (
+                        <Text style={styles.inlineProfileRole}>{roleLabel}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+                  {summary ? (
+                    <View style={styles.summaryPill}>
+                      <Text style={styles.summaryText}>{summary}</Text>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
+
+                {showProfilePanel ? (
+                  <View style={styles.profilePanel}>
+                    {profileAvatar}
+
+                    <View style={styles.profileTextWrap}>
+                      <Text style={styles.profileLabel}>Signed in as</Text>
+                      <Text style={styles.profileName}>
+                        {displayName || "Current user"}
+                      </Text>
+                      <Text style={styles.profileRole}>{roleLabel}</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
             </View>
 
             {children}
@@ -97,6 +238,19 @@ const styles = StyleSheet.create({
     shadowRadius: 26,
     elevation: 6,
   },
+  heroContent: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  heroTextWrap: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 320,
+    minWidth: 220,
+  },
   eyebrow: {
     color: "rgba(255,244,214,0.88)",
     fontSize: 12,
@@ -110,6 +264,20 @@ const styles = StyleSheet.create({
     fontSize: Platform.OS === "web" ? 34 : 30,
     fontWeight: "900",
     lineHeight: Platform.OS === "web" ? 40 : 35,
+  },
+  inlineTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  inlineTitleTextWrap: {
+    flex: 1,
+  },
+  inlineProfileRole: {
+    marginTop: 6,
+    color: "rgba(255,255,255,0.74)",
+    fontSize: 13,
+    fontWeight: "700",
   },
   subtitle: {
     color: "rgba(255,255,255,0.82)",
@@ -130,5 +298,83 @@ const styles = StyleSheet.create({
     color: agriPalette.white,
     fontSize: 13,
     fontWeight: "700",
+  },
+  profilePanel: {
+    flexBasis: 220,
+    minWidth: 220,
+    maxWidth: 280,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  profileAvatarShell: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    padding: 3,
+    backgroundColor: "rgba(240,212,142,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileAvatarShellInline: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  profileAvatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 29,
+  },
+  profileAvatarInline: {
+    borderRadius: 33,
+  },
+  profileFallback: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 29,
+    backgroundColor: agriPalette.fieldDeep,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileFallbackInline: {
+    borderRadius: 33,
+  },
+  profileFallbackText: {
+    color: agriPalette.white,
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  profileFallbackTextInline: {
+    fontSize: 24,
+  },
+  profileTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  profileLabel: {
+    color: "rgba(255,244,214,0.8)",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  profileName: {
+    marginTop: 6,
+    color: agriPalette.white,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  profileRole: {
+    marginTop: 4,
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

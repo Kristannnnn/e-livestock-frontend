@@ -67,6 +67,7 @@ export default function DashboardScreen() {
   return (
     <DashboardShell
       eyebrow="Antemortem inspection"
+      profilePlacement="panel"
       title="Animal movement overview"
       subtitle="Follow slaughter preparation, scheduled inspections, and pending checks through a cleaner dashboard tuned to agriculture workflows."
       summary={
@@ -136,7 +137,6 @@ export default function DashboardScreen() {
           <AgriButton
             title="Settings"
             subtitle="Update your antemortem inspector profile"
-            icon="cog-outline"
             variant="sky"
             onPress={() => router.push("/settings")}
           />

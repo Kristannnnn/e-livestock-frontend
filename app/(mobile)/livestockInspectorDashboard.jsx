@@ -16,10 +16,11 @@ import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
 import StatCard from "../../components/StatCard";
 import LogoutButton from "../../components/logOutButton";
-import { apiRoutes, apiUrl } from "../../lib/api";
+import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
 import { agriPalette } from "../../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.inspector.summary);
+const RENEWALS_URL = apiUrl(apiRoutes.renewals.list);
 
 const filterOptions = [
   { value: "today", label: "Today" },
@@ -174,6 +175,7 @@ const InspectorDashboard = () => {
   const [dashboard, setDashboard] = useState(createEmptyDashboard());
   const [loading, setLoading] = useState(true);
   const [accountId, setAccountId] = useState(null);
+  const [renewalCount, setRenewalCount] = useState(0);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -199,9 +201,20 @@ const InspectorDashboard = () => {
     const fetchSummary = async () => {
       try {
         setLoading(true);
-        const url = `${API_URL}?filter=${filter}&account_id=${accountId}`;
-        const response = await fetch(url);
-        const result = await response.json();
+        const summaryUrl = `${API_URL}?filter=${filter}&account_id=${accountId}`;
+        const [summaryResponse, renewalsResponse] = await Promise.all([
+          fetch(summaryUrl),
+          fetch(RENEWALS_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "pending" }),
+          }),
+        ]);
+        const result = await summaryResponse.json();
+        const renewalsData = await parseJsonResponse(
+          renewalsResponse,
+          `Renewals API request failed (HTTP ${renewalsResponse.status}).`
+        );
 
         if (result.success) {
           setDashboard(buildDashboardState(result));
@@ -209,9 +222,18 @@ const InspectorDashboard = () => {
           console.error("Error:", result.message);
           setDashboard(createEmptyDashboard());
         }
+
+        if (renewalsData.status === "success") {
+          setRenewalCount(
+            Array.isArray(renewalsData.requests) ? renewalsData.requests.length : 0
+          );
+        } else {
+          setRenewalCount(0);
+        }
       } catch (err) {
         console.error("Fetch Error:", err);
         setDashboard(createEmptyDashboard());
+        setRenewalCount(0);
       } finally {
         setLoading(false);
       }
@@ -265,12 +287,13 @@ const InspectorDashboard = () => {
   return (
     <DashboardShell
       eyebrow="Inspector operations"
+      profilePlacement="panel"
       title="Inspection dashboard"
       subtitle="Focus on forms created under your own inspector account and monitor which of those permits still have active QR validity."
       summary={
         loading
           ? "Syncing your inspection records..."
-          : `${dashboard.total} forms created by you in ${selectedFilterLabel.toLowerCase()}, with ${dashboard.validQr} active QR permits.`
+          : `${dashboard.total} forms created by you in ${selectedFilterLabel.toLowerCase()}, with ${dashboard.validQr} active QR permits and ${renewalCount} pending renewal request${renewalCount === 1 ? "" : "s"}.`
       }
     >
       <View style={styles.statsGrid}>
@@ -289,6 +312,15 @@ const InspectorDashboard = () => {
           icon="qrcode-scan"
           accent="wheat"
           loading={loading}
+        />
+        <StatCard
+          label="Renewal queue"
+          value={renewalCount}
+          caption="Owner-requested renewals waiting for your form reuse and approval."
+          icon="calendar-refresh-outline"
+          accent="sky"
+          loading={loading}
+          onPress={() => router.push("/renewalRequests")}
         />
       </View>
 
@@ -510,9 +542,15 @@ const InspectorDashboard = () => {
             onPress={() => router.push("/createLivestockForm")}
           />
           <AgriButton
+            title="Review renewal requests"
+            subtitle={`${renewalCount} pending request${renewalCount === 1 ? "" : "s"} waiting for reuse`}
+            icon="calendar-refresh-outline"
+            variant="earth"
+            onPress={() => router.push("/renewalRequests")}
+          />
+          <AgriButton
             title="Settings"
             subtitle="Update your livestock inspector profile"
-            icon="cog-outline"
             variant="sky"
             onPress={() => router.push("/settings")}
           />

@@ -152,6 +152,7 @@ export default function DashboardScreen() {
   return (
     <DashboardShell
       eyebrow="Livestock owner portal"
+      profilePlacement="inlineTitle"
       title={
         firstName ? `Welcome back, ${firstName}` : "Welcome back to e-Livestock"
       }
@@ -218,7 +219,6 @@ export default function DashboardScreen() {
           <AgriButton
             title="Settings"
             subtitle="Update your owner profile details"
-            icon="cog-outline"
             variant="secondary"
             onPress={() => router.push("/settings")}
           />

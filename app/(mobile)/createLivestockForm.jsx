@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Picker } from "@react-native-picker/picker";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -277,8 +277,12 @@ function validateBatchFields(batchData, accountId, queuedAnimals, animalDraft) {
 
 export default function AddLivestockForm() {
   const router = useRouter();
+  const { renewalRequestId: renewalRequestIdParam } = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const isTablet = width >= 700;
+  const renewalRequestId = Array.isArray(renewalRequestIdParam)
+    ? renewalRequestIdParam[0]
+    : renewalRequestIdParam;
 
   const [batchData, setBatchData] = useState(createBatchData());
   const [animalDraft, setAnimalDraft] = useState(createAnimalDraft());
@@ -299,6 +303,8 @@ export default function AddLivestockForm() {
   const [batchErrors, setBatchErrors] = useState({});
   const [animalErrors, setAnimalErrors] = useState({});
   const [focusedField, setFocusedField] = useState("");
+  const [renewalContext, setRenewalContext] = useState(null);
+  const [loadingRenewal, setLoadingRenewal] = useState(false);
 
   useEffect(() => {
     const loadAccount = async () => {
@@ -326,6 +332,122 @@ export default function AddLivestockForm() {
 
     loadAccount();
   }, []);
+
+  useEffect(() => {
+    if (!renewalRequestId || loadingAccount) {
+      if (!renewalRequestId) {
+        setRenewalContext(null);
+      }
+      return undefined;
+    }
+
+    let active = true;
+
+    const loadRenewalRequest = async () => {
+      try {
+        setLoadingRenewal(true);
+        const response = await fetch(apiUrl(apiRoutes.renewals.details), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            renewal_request_id: Number.parseInt(renewalRequestId, 10),
+          }),
+        });
+
+        const data = await parseJsonResponse(
+          response,
+          "Unable to load the renewal request details."
+        );
+
+        if (!active) {
+          return;
+        }
+
+        if (data.status !== "success" || !data.request) {
+          Alert.alert(
+            "Renewal unavailable",
+            data.message || "The renewal request is no longer available."
+          );
+          router.replace("/renewalRequests");
+          return;
+        }
+
+        const request = data.request;
+        const ownerAddress = parseAddress(request.owner_address);
+        const originAddress = parseAddress(request.animal_origin);
+
+        setRenewalContext({
+          renewal_request_id: request.renewal_request_id,
+          form_id: request.form_id,
+          requested_date: request.requested_date,
+          owner_name: request.owner_name || "",
+          owner_account_id: Number(request.owner_account_id || 0),
+        });
+        setSelectedOwner(
+          Number(request.owner_account_id || 0) > 0
+            ? {
+                account_id: Number(request.owner_account_id || 0),
+                full_name: request.owner_name || "",
+                address: request.owner_address || "",
+              }
+            : null
+        );
+        setBatchData((current) => ({
+          ...createBatchData(request.inspector_issued || current.inspector_issued),
+          inspection_time_start: request.inspection_time_start || "",
+          inspection_time_end: request.inspection_time_end || "",
+          owner_name: request.owner_name || "",
+          owner_barangay: ownerAddress.barangay || "",
+          owner_city: ownerAddress.city || DEFAULT_CITY,
+          owner_province: ownerAddress.province || DEFAULT_PROVINCE,
+          animal_origin_barangay: originAddress.barangay || "",
+          animal_origin_city: originAddress.city || DEFAULT_CITY,
+          animal_origin_province: originAddress.province || DEFAULT_PROVINCE,
+          animal_destination: request.animal_destination || DEFAULT_DESTINATION,
+          vehicle_used: request.vehicle_used || "",
+          paid_number: request.paid_number || "",
+          inspector_issued: request.inspector_issued || current.inspector_issued,
+        }));
+        setQueuedAnimals([
+          {
+            id: `renewal-${request.renewal_request_id}`,
+            animal_species: request.animal_species || "",
+            animal_unique_identifier: request.animal_unique_identifier || "",
+            live_weight: String(request.live_weight || ""),
+            purpose: request.purpose || DEFAULT_PURPOSE,
+            remarks: request.remarks || "",
+          },
+        ]);
+        setAnimalDraft(createAnimalDraft());
+        setEditingId(null);
+        setSavedAnimals([]);
+        setSubmitted(false);
+        setBatchId("");
+        setQrExpiry("");
+        setBatchErrors({});
+        setAnimalErrors({});
+      } catch (error) {
+        console.error(error);
+        if (active) {
+          Alert.alert(
+            "Renewal unavailable",
+            error.message || "Unable to load the renewal request."
+          );
+          router.replace("/renewalRequests");
+        }
+      } finally {
+        if (active) {
+          setLoadingRenewal(false);
+        }
+      }
+    };
+
+    loadRenewalRequest();
+
+    return () => {
+      active = false;
+    };
+  }, [loadingAccount, renewalRequestId, router]);
 
   useEffect(() => {
     if (submitted) {
@@ -393,6 +515,7 @@ export default function AddLivestockForm() {
   );
   const reviewedCount = savedAnimals.filter((animal) => animal.dssChecked).length;
   const urgentCount = savedAnimals.filter((animal) => animal.urgent).length;
+  const isRenewalMode = Boolean(renewalContext?.renewal_request_id);
 
   const updateBatchData = (key, value) => {
     setBatchData((prev) => ({ ...prev, [key]: value }));
@@ -466,6 +589,14 @@ export default function AddLivestockForm() {
   };
 
   const queueAnimal = () => {
+    if (isRenewalMode && !editingId && queuedAnimals.length >= 1) {
+      Alert.alert(
+        "Single renewal record",
+        "A renewal request can only reuse one animal record at a time."
+      );
+      return;
+    }
+
     if (!validateAnimalDraft()) {
       return;
     }
@@ -537,6 +668,14 @@ export default function AddLivestockForm() {
       return;
     }
 
+    if (isRenewalMode && queuedAnimals.length !== 1) {
+      Alert.alert(
+        "Renewal needs one animal",
+        "A renewal request can only submit one reusable animal record."
+      );
+      return;
+    }
+
     try {
       const token = await AsyncStorage.getItem("token");
       const response = await fetch(apiUrl(apiRoutes.inspector.createForm), {
@@ -550,6 +689,7 @@ export default function AddLivestockForm() {
           inspector: batchData.inspector_issued,
           inspection_time_start: batchData.inspection_time_start,
           inspection_time_end: batchData.inspection_time_end,
+          renewal_request_id: renewalContext?.renewal_request_id ?? null,
           animals: queuedAnimals.map((animal) => ({
             animal_species: animal.animal_species,
             animal_unique_identifier: animal.animal_unique_identifier,
@@ -598,9 +738,11 @@ export default function AddLivestockForm() {
 
       Alert.alert(
         "Success",
-        `Batch submitted successfully for ${forms.length} animal${
-          forms.length === 1 ? "" : "s"
-        }.`
+        isRenewalMode
+          ? `Renewal completed successfully for form #${renewalContext?.form_id}.`
+          : `Batch submitted successfully for ${forms.length} animal${
+              forms.length === 1 ? "" : "s"
+            }.`
       );
     } catch (error) {
       console.error("Submit error:", error);
@@ -733,15 +875,24 @@ export default function AddLivestockForm() {
     setBatchErrors({});
     setAnimalErrors({});
     setFocusedField("");
+    setRenewalContext(null);
+
+    if (renewalRequestId) {
+      router.replace("/createLivestockForm");
+    }
   };
 
-  if (loadingAccount) {
+  if (loadingAccount || loadingRenewal) {
     return (
       <DashboardShell
         eyebrow="Field form creation"
-        title="Create livestock form"
+        title={renewalRequestId ? "Load renewal form" : "Create livestock form"}
         subtitle="Preparing the inspection workspace."
-        summary="Loading account information for the issuing inspector."
+        summary={
+          loadingRenewal
+            ? "Loading the original renewal record for inspector reuse."
+            : "Loading account information for the issuing inspector."
+        }
       >
         <View style={styles.card}>
           <ActivityIndicator size="large" color={agriPalette.field} />
@@ -753,19 +904,40 @@ export default function AddLivestockForm() {
   return (
     <DashboardShell
       eyebrow="Field form creation"
-      title="Create livestock form"
-      subtitle="Submit one batch of animals while keeping DSS and scheduling linked to each animal."
+      title={isRenewalMode ? "Renew livestock form" : "Create livestock form"}
+      subtitle={
+        isRenewalMode
+          ? "Reuse the expired record, edit the details, and submit one renewed livestock form for the scheduled owner request."
+          : "Submit one batch of animals while keeping DSS and scheduling linked to each animal."
+      }
       summary={
         submitted
-          ? `${savedAnimals.length} animals submitted${batchId ? ` under ${batchId}` : ""}. ${reviewedCount} reviewed by DSS and ${urgentCount} marked urgent.`
-          : `${queuedAnimals.length} animals queued. Shared owner, origin, transport, and inspection details will apply to every animal in this batch.`
+          ? isRenewalMode
+            ? `Renewal request #${renewalContext?.renewal_request_id} completed. ${reviewedCount} reviewed by DSS and ${urgentCount} marked urgent.`
+            : `${savedAnimals.length} animals submitted${batchId ? ` under ${batchId}` : ""}. ${reviewedCount} reviewed by DSS and ${urgentCount} marked urgent.`
+          : isRenewalMode
+            ? `Renewal scheduled for ${renewalContext?.requested_date || "the selected day"}. Review the reused record, edit what changed, and submit the renewal.`
+            : `${queuedAnimals.length} animals queued. Shared owner, origin, transport, and inspection details will apply to every animal in this batch.`
       }
     >
       <View style={styles.card}>
+        {isRenewalMode ? (
+          <View style={styles.renewalBanner}>
+            <Text style={styles.renewalBannerEyebrow}>Renewal request</Text>
+            <Text style={styles.renewalBannerTitle}>
+              Reusing form #{renewalContext?.form_id} for {renewalContext?.owner_name || "the owner"}
+            </Text>
+            <Text style={styles.renewalBannerCopy}>
+              This request is scheduled for {renewalContext?.requested_date || "the selected day"}. Keep one animal record in the queue, edit the details that changed, and then submit the renewed form.
+            </Text>
+          </View>
+        ) : null}
+
         <Text style={styles.heading}>Batch Details</Text>
         <Text style={styles.sectionLead}>
-          Shared owner, route, and inspection information will apply to every
-          animal in this batch.
+          {isRenewalMode
+            ? "Shared owner, route, and inspection details were prefilled from the old form and can still be updated before you submit the renewed record."
+            : "Shared owner, route, and inspection information will apply to every animal in this batch."}
         </Text>
         {renderError(batchErrors.account_id)}
         <Text style={styles.label}>Owner name</Text>
@@ -951,10 +1123,13 @@ export default function AddLivestockForm() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.heading}>{editingId ? "Edit Animal" : "Add Animal"}</Text>
+        <Text style={styles.heading}>
+          {editingId ? "Edit Animal" : isRenewalMode ? "Renewal Animal" : "Add Animal"}
+        </Text>
         <Text style={styles.sectionLead}>
-          Save one animal at a time so remarks, DSS results, and scheduling stay
-          linked to the correct record.
+          {isRenewalMode
+            ? "Renewals reuse one editable animal record so the inspector can update the old form before filing the new permit."
+            : "Save one animal at a time so remarks, DSS results, and scheduling stay linked to the correct record."}
         </Text>
         {renderError(batchErrors.animal_draft)}
         <View style={[styles.row, isTablet && styles.rowWide]}>
@@ -1050,8 +1225,18 @@ export default function AddLivestockForm() {
         {!submitted ? (
           <View style={styles.listGap}>
             <AgriButton
-              title={editingId ? "Update queued animal" : "Add animal to batch"}
-              subtitle="Keep DSS linked to this animal by saving its own remarks"
+              title={
+                editingId
+                  ? "Update queued animal"
+                  : isRenewalMode
+                    ? "Save renewal animal"
+                    : "Add animal to batch"
+              }
+              subtitle={
+                isRenewalMode
+                  ? "Renewals reuse one animal record at a time"
+                  : "Keep DSS linked to this animal by saving its own remarks"
+              }
               icon="plus-circle-outline"
               compact
               onPress={queueAnimal}
@@ -1159,18 +1344,26 @@ export default function AddLivestockForm() {
       <View style={styles.listGap}>
         {!submitted ? (
           <AgriButton
-            title="Submit batch"
-            subtitle={`Create ${queuedAnimals.length} livestock record${
-              queuedAnimals.length === 1 ? "" : "s"
-            } in one submission`}
+            title={isRenewalMode ? "Submit renewal" : "Submit batch"}
+            subtitle={
+              isRenewalMode
+                ? "Create one renewed livestock record from this scheduled request"
+                : `Create ${queuedAnimals.length} livestock record${
+                    queuedAnimals.length === 1 ? "" : "s"
+                  } in one submission`
+            }
             icon="file-check-outline"
             onPress={submitBatch}
             disabled={queuedAnimals.length === 0}
           />
         ) : (
           <AgriButton
-            title="Start new batch"
-            subtitle="Reset this workspace for another group of animals"
+            title={isRenewalMode ? "Open another renewal" : "Start new batch"}
+            subtitle={
+              isRenewalMode
+                ? "Return to a clean form workspace"
+                : "Reset this workspace for another group of animals"
+            }
             icon="note-plus-outline"
             variant="sky"
             onPress={resetAll}
@@ -1230,6 +1423,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 18,
     elevation: 3,
+  },
+  renewalBanner: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E7D2A1",
+    backgroundColor: "#FFF4D6",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  renewalBannerEyebrow: {
+    color: "#8A6510",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  renewalBannerTitle: {
+    marginTop: 8,
+    color: agriPalette.ink,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  renewalBannerCopy: {
+    marginTop: 8,
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 21,
   },
   heading: {
     color: agriPalette.ink,
