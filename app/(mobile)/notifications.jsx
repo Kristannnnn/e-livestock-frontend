@@ -160,14 +160,14 @@ function getNotificationCategoryLabel(category) {
 function getNotificationTypeLabel(type) {
   const normalizedType = normalizeNotificationType(type);
   const labels = {
-    form_batch: "Form batch",
-    schedule_created: "New schedule",
-    schedule_status: "Schedule update",
-    schedule_cancelled: "Schedule cancelled",
+    form_batch: "Batch recorded",
+    schedule_created: "Appointment booked",
+    schedule_status: "Appointment update",
+    schedule_cancelled: "Appointment cancelled",
     login_success: "Login success",
     account_updated: "Account updated",
     password_updated: "Password updated",
-    renewal_request: "Renewal request",
+    renewal_request: "Renewal booked",
     renewal_completed: "Renewal completed",
     renewal_cancelled: "Renewal cancelled",
     general: "General",
@@ -340,6 +340,66 @@ function buildNotificationRouteParams(item) {
   }
 
   return Object.keys(params).length ? params : undefined;
+}
+
+function getNotificationActionLabel(item, role) {
+  const type = normalizeNotificationType(item?.type);
+
+  if (type === "renewal_request") {
+    return role === "livestockInspector"
+      ? "Open renewal queue"
+      : "Open stockyard";
+  }
+
+  if (type === "renewal_completed") {
+    return role === "livestockInspector"
+      ? "Open submitted forms"
+      : "Review renewed form";
+  }
+
+  if (type === "renewal_cancelled") {
+    return role === "livestockInspector"
+      ? "Review renewal queue"
+      : "Review stockyard";
+  }
+
+  if (["schedule_created", "schedule_status", "schedule_cancelled"].includes(type)) {
+    return role === "AntemortemInspector"
+      ? "Open schedule board"
+      : "Open my schedules";
+  }
+
+  if (type === "form_batch") {
+    return role === "livestockInspector"
+      ? "Open form records"
+      : "Open stockyard";
+  }
+
+  if (["account_updated", "password_updated"].includes(type)) {
+    return "Open settings";
+  }
+
+  if (type === "login_success") {
+    return "Open dashboard";
+  }
+
+  return "Open alert";
+}
+
+function buildNotificationReferenceChips(item) {
+  const chips = [];
+  const relatedFormId = Number(item?.related_form_id) || 0;
+  const relatedScheduleId = Number(item?.related_schedule_id) || 0;
+
+  if (relatedFormId > 0) {
+    chips.push(`Form #${relatedFormId}`);
+  }
+
+  if (relatedScheduleId > 0) {
+    chips.push(`Schedule #${relatedScheduleId}`);
+  }
+
+  return chips;
 }
 
 function buildNotificationDestination(item, role) {
@@ -670,6 +730,44 @@ export default function NotificationsScreen() {
             <Text style={styles.highlightCopy} numberOfLines={2}>
               {latestNotification.message}
             </Text>
+            <View style={styles.highlightMetaRow}>
+              <View
+                style={[
+                  styles.metaBadge,
+                  {
+                    backgroundColor:
+                      (CATEGORY_TONES[latestNotification.category] ||
+                        CATEGORY_TONES.system).backgroundColor,
+                    borderColor:
+                      (CATEGORY_TONES[latestNotification.category] ||
+                        CATEGORY_TONES.system).borderColor,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.metaBadgeText,
+                    {
+                      color:
+                        (CATEGORY_TONES[latestNotification.category] ||
+                          CATEGORY_TONES.system).color,
+                    },
+                  ]}
+                >
+                  {latestNotification.category_label}
+                </Text>
+              </View>
+              <View style={styles.actionHintPill}>
+                <MaterialCommunityIcons
+                  name="arrow-top-right"
+                  size={14}
+                  color={agriPalette.fieldDeep}
+                />
+                <Text style={styles.actionHintText}>
+                  {getNotificationActionLabel(latestNotification, role)}
+                </Text>
+              </View>
+            </View>
           </View>
 
           <View style={styles.highlightTimeWrap}>
@@ -784,6 +882,24 @@ export default function NotificationsScreen() {
                 </View>
                 <Text style={styles.metaType}>{item.type_label}</Text>
               </View>
+              <View style={styles.detailRow}>
+                <View style={styles.actionHintPill}>
+                  <MaterialCommunityIcons
+                    name="arrow-top-right"
+                    size={14}
+                    color={agriPalette.fieldDeep}
+                  />
+                  <Text style={styles.actionHintText}>
+                    {getNotificationActionLabel(item, role)}
+                  </Text>
+                </View>
+
+                {buildNotificationReferenceChips(item).map((chip) => (
+                  <View key={`${item.notification_id}-${chip}`} style={styles.referenceChip}>
+                    <Text style={styles.referenceChipText}>{chip}</Text>
+                  </View>
+                ))}
+              </View>
               <Text style={styles.meta}>{formatNotificationDate(item.created_at)}</Text>
             </Pressable>
           );
@@ -839,6 +955,13 @@ const styles = StyleSheet.create({
     color: agriPalette.inkSoft,
     fontSize: 13,
     lineHeight: 19,
+  },
+  highlightMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12,
   },
   highlightTimeWrap: {
     alignSelf: "flex-start",
@@ -1018,6 +1141,42 @@ const styles = StyleSheet.create({
     color: agriPalette.field,
     fontSize: 12,
     fontWeight: "800",
+  },
+  detailRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  actionHintPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: "#EEF4EA",
+    borderWidth: 1,
+    borderColor: "#D5E0CF",
+  },
+  actionHintText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  referenceChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: agriPalette.cream,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  referenceChipText: {
+    color: agriPalette.inkSoft,
+    fontSize: 11,
+    fontWeight: "900",
   },
   timePill: {
     maxWidth: 110,

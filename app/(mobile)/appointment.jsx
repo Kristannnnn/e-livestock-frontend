@@ -21,9 +21,39 @@ import { agriPalette } from "../../constants/agriTheme";
 import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
 
 function parseDateOnly(value) {
-  if (!value) return null;
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  const raw = String(value || "").trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const parsed = new Date(
+    /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : normalized
+  );
+
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  const match = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day, hour = "0", minute = "0", second = "0"] = match;
+
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second)
+  );
 }
 
 function toApiDate(dateValue) {
