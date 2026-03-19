@@ -13,7 +13,6 @@ import {
   View,
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
-import QRCode from "react-native-qrcode-svg";
 import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
 import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
@@ -129,6 +128,13 @@ function hasDraftValues(animalDraft) {
   );
 }
 
+function isHighSeverityResult(result) {
+  const severityLabel = String(result?.severity_label || "").trim().toLowerCase();
+  const severityRating = Number(result?.severity_rating);
+
+  return severityLabel === "severe" || severityRating >= 5;
+}
+
 export default function AddLivestockForm() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -142,7 +148,6 @@ export default function AddLivestockForm() {
   const [accountId, setAccountId] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [batchId, setBatchId] = useState("");
-  const [qrValue, setQrValue] = useState("");
   const [qrExpiry, setQrExpiry] = useState("");
   const [loadingAccount, setLoadingAccount] = useState(true);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
@@ -456,7 +461,6 @@ export default function AddLivestockForm() {
         }))
       );
       setBatchId(data.batch_id || "");
-      setQrValue(data.qr_code || "");
       setQrExpiry(data.qr_expiration || getDefaultExpiry());
       setSubmitted(true);
       resetAnimalDraft();
@@ -496,6 +500,8 @@ export default function AddLivestockForm() {
       );
 
       if (data.status === "success") {
+        const isHighSeverity = isHighSeverityResult(data);
+
         setSavedAnimals((prev) =>
           prev.map((item) =>
             item.form_id !== animal.form_id
@@ -513,13 +519,23 @@ export default function AddLivestockForm() {
                     data.severity_rating !== undefined
                       ? Number(data.severity_rating)
                       : null,
-                  urgent:
-                    data.severity_label === "Severe" ||
-                    Number(data.severity_score) >= 0.6,
+                  urgent: isHighSeverity,
                 }
           )
         );
-        Alert.alert("DSS Checked", "Suggestions updated for this animal.");
+
+        if (isHighSeverity) {
+          Alert.alert(
+            "High severity detected",
+            "This animal was marked as high severity. Do you want to open urgent scheduling now?",
+            [
+              { text: "Later", style: "cancel" },
+              { text: "Open urgent schedule", onPress: () => openUrgentSchedule(animal) },
+            ]
+          );
+        } else {
+          Alert.alert("DSS Checked", "Suggestions updated for this animal.");
+        }
       } else if (data.message === "No matches found") {
         setSavedAnimals((prev) =>
           prev.map((item) =>
@@ -577,7 +593,6 @@ export default function AddLivestockForm() {
     setEditingId(null);
     setSubmitted(false);
     setBatchId("");
-    setQrValue("");
     setQrExpiry("");
     setSelectedOwner(null);
     setOwnerMatches([]);
@@ -935,25 +950,6 @@ export default function AddLivestockForm() {
         ) : null}
       </View>
 
-      {qrValue ? (
-        <View style={[styles.card, styles.qrCard]}>
-          <Text style={styles.heading}>Batch QR</Text>
-          <Text style={styles.helper}>
-            This QR is shared across the submitted batch, while each animal
-            keeps its own form ID for DSS and scheduling. It is valid until{" "}
-            {new Date(qrExpiry).toLocaleString()}.
-          </Text>
-          <View style={styles.qrSurface}>
-            <QRCode
-              value={String(qrValue)}
-              size={width >= 600 ? 180 : 148}
-              color={agriPalette.fieldDeep}
-              backgroundColor="#fff"
-            />
-          </View>
-        </View>
-      ) : null}
-
       <DateTimePickerModal
         isVisible={timePickerVisible}
         mode="time"
@@ -1087,14 +1083,5 @@ const styles = StyleSheet.create({
     borderColor: agriPalette.border,
     backgroundColor: "#FCF7EB",
     padding: 12,
-  },
-  qrCard: {
-    alignItems: "center",
-  },
-  qrSurface: {
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 24,
-    backgroundColor: agriPalette.white,
   },
 });
