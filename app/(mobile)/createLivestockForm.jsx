@@ -135,6 +135,146 @@ function isHighSeverityResult(result) {
   return severityLabel === "severe" || severityRating >= 5;
 }
 
+function removeErrorKey(errors, key) {
+  if (!errors[key]) {
+    return errors;
+  }
+
+  const nextErrors = { ...errors };
+  delete nextErrors[key];
+  return nextErrors;
+}
+
+function hasValidationErrors(errors) {
+  return Object.keys(errors).length > 0;
+}
+
+function parseTimeValue(value) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(`1970-01-01 ${value}`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.getHours() * 60 + parsed.getMinutes();
+}
+
+function validateAnimalFields(animalDraft, queuedAnimals, editingId) {
+  const errors = {};
+  const uniqueIdentifier = String(animalDraft.animal_unique_identifier || "").trim();
+  const liveWeight = String(animalDraft.live_weight || "").trim();
+  const remarks = String(animalDraft.remarks || "").trim();
+
+  if (!String(animalDraft.animal_species || "").trim()) {
+    errors.animal_species = "Select the animal species.";
+  }
+
+  if (!uniqueIdentifier) {
+    errors.animal_unique_identifier = "Enter the animal identifier.";
+  } else if (uniqueIdentifier.length < 3) {
+    errors.animal_unique_identifier =
+      "Identifier must be at least 3 characters long.";
+  }
+
+  if (!liveWeight) {
+    errors.live_weight = "Enter the live weight.";
+  } else if (!/^\d+(\.\d{1,2})?$/.test(liveWeight) || Number(liveWeight) <= 0) {
+    errors.live_weight = "Enter a valid weight greater than 0.";
+  }
+
+  if (!String(animalDraft.purpose || "").trim()) {
+    errors.purpose = "Enter the transport purpose.";
+  }
+
+  if (!remarks) {
+    errors.remarks = "Enter remarks for DSS checking.";
+  } else if (remarks.length < 3) {
+    errors.remarks = "Remarks must be at least 3 characters long.";
+  }
+
+  const duplicate = queuedAnimals.find(
+    (animal) =>
+      animal.id !== editingId &&
+      normalizeValue(animal.animal_unique_identifier) ===
+        normalizeValue(uniqueIdentifier)
+  );
+
+  if (duplicate) {
+    errors.animal_unique_identifier =
+      "This animal identifier is already queued in the batch.";
+  }
+
+  return errors;
+}
+
+function validateBatchFields(batchData, accountId, queuedAnimals, animalDraft) {
+  const errors = {};
+  const ownerName = String(batchData.owner_name || "").trim();
+  const destination = String(batchData.animal_destination || "").trim();
+  const paidNumber = String(batchData.paid_number || "").trim();
+  const startMinutes = parseTimeValue(batchData.inspection_time_start);
+  const endMinutes = parseTimeValue(batchData.inspection_time_end);
+
+  if (!String(batchData.inspection_time_start || "").trim()) {
+    errors.inspection_time_start = "Select the inspection start time.";
+  }
+
+  if (!String(batchData.inspection_time_end || "").trim()) {
+    errors.inspection_time_end = "Select the inspection end time.";
+  }
+
+  if (startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
+    errors.inspection_time_end = "Inspection end time must be later than start time.";
+  }
+
+  if (!ownerName) {
+    errors.owner_name = "Enter the owner name.";
+  } else if (ownerName.length < 3) {
+    errors.owner_name = "Owner name must be at least 3 characters long.";
+  }
+
+  if (!String(batchData.owner_barangay || "").trim()) {
+    errors.owner_barangay = "Select the owner's barangay.";
+  }
+
+  if (!String(batchData.animal_origin_barangay || "").trim()) {
+    errors.animal_origin_barangay = "Select the animal origin barangay.";
+  }
+
+  if (!destination) {
+    errors.animal_destination = "Enter the animal destination.";
+  } else if (destination.length < 6) {
+    errors.animal_destination = "Destination must be at least 6 characters long.";
+  }
+
+  if (!String(batchData.vehicle_used || "").trim()) {
+    errors.vehicle_used = "Select the vehicle used.";
+  }
+
+  if (!paidNumber) {
+    errors.paid_number = "Enter the paid number.";
+  } else if (!/^\d+$/.test(paidNumber)) {
+    errors.paid_number = "Paid number must contain digits only.";
+  }
+
+  if (!accountId) {
+    errors.account_id = "Account ID could not be retrieved.";
+  }
+
+  if (queuedAnimals.length === 0) {
+    errors.queued_animals = "Add at least one animal before submitting the batch.";
+  }
+
+  if (hasDraftValues(animalDraft)) {
+    errors.animal_draft = "Save or clear the current animal draft before submitting.";
+  }
+
+  return errors;
+}
+
 export default function AddLivestockForm() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -156,6 +296,9 @@ export default function AddLivestockForm() {
   const [ownerMatches, setOwnerMatches] = useState([]);
   const [ownerLookupLoading, setOwnerLookupLoading] = useState(false);
   const [activeDssId, setActiveDssId] = useState(null);
+  const [batchErrors, setBatchErrors] = useState({});
+  const [animalErrors, setAnimalErrors] = useState({});
+  const [focusedField, setFocusedField] = useState("");
 
   useEffect(() => {
     const loadAccount = async () => {
@@ -251,11 +394,25 @@ export default function AddLivestockForm() {
   const reviewedCount = savedAnimals.filter((animal) => animal.dssChecked).length;
   const urgentCount = savedAnimals.filter((animal) => animal.urgent).length;
 
-  const updateBatchData = (key, value) =>
+  const updateBatchData = (key, value) => {
     setBatchData((prev) => ({ ...prev, [key]: value }));
+    setBatchErrors((prev) => removeErrorKey(prev, key));
+  };
 
-  const updateAnimalDraft = (key, value) =>
+  const updateAnimalDraft = (key, value) => {
     setAnimalDraft((prev) => ({ ...prev, [key]: value }));
+    setAnimalErrors((prev) => removeErrorKey(prev, key));
+  };
+
+  const getFieldShellStyle = (fieldKey, errorMessage, kind = "input") => [
+    kind === "picker" ? styles.pickerWrap : styles.inputShell,
+    focusedField === fieldKey && styles.fieldShellFocused,
+    errorMessage && styles.fieldShellError,
+    submitted && styles.fieldShellDisabled,
+  ];
+
+  const renderError = (message) =>
+    message ? <Text style={styles.errorText}>{message}</Text> : null;
 
   const onOwnerChange = (value) => {
     updateBatchData("owner_name", value);
@@ -272,6 +429,11 @@ export default function AddLivestockForm() {
     const parsed = parseAddress(owner.address);
     setSelectedOwner(owner);
     setOwnerMatches([]);
+    setBatchErrors((prev) => {
+      let next = removeErrorKey(prev, "owner_name");
+      next = removeErrorKey(next, "owner_barangay");
+      return next;
+    });
     setBatchData((prev) => ({
       ...prev,
       owner_name: owner.full_name || prev.owner_name,
@@ -284,35 +446,18 @@ export default function AddLivestockForm() {
   const resetAnimalDraft = () => {
     setAnimalDraft(createAnimalDraft());
     setEditingId(null);
+    setAnimalErrors({});
+    setBatchErrors((prev) => removeErrorKey(prev, "animal_draft"));
   };
 
   const validateAnimalDraft = () => {
-    const required = [
-      ["animal_species", "Animal species"],
-      ["animal_unique_identifier", "Unique identifier"],
-      ["live_weight", "Live weight"],
-      ["purpose", "Purpose"],
-      ["remarks", "Remarks"],
-    ];
+    const errors = validateAnimalFields(animalDraft, queuedAnimals, editingId);
+    setAnimalErrors(errors);
 
-    for (const [key, label] of required) {
-      if (!String(animalDraft[key] || "").trim()) {
-        Alert.alert("Error", `Please fill the field: ${label}`);
-        return false;
-      }
-    }
-
-    const duplicate = queuedAnimals.find(
-      (animal) =>
-        animal.id !== editingId &&
-        normalizeValue(animal.animal_unique_identifier) ===
-          normalizeValue(animalDraft.animal_unique_identifier)
-    );
-
-    if (duplicate) {
+    if (hasValidationErrors(errors)) {
       Alert.alert(
-        "Duplicate identifier",
-        "This animal identifier is already queued in the batch."
+        "Complete the animal details",
+        "Please review the highlighted animal fields before saving to the batch."
       );
       return false;
     }
@@ -340,6 +485,11 @@ export default function AddLivestockForm() {
         ? prev.map((animal) => (animal.id === editingId ? nextAnimal : animal))
         : [...prev, nextAnimal]
     );
+    setBatchErrors((prev) => {
+      let next = removeErrorKey(prev, "queued_animals");
+      next = removeErrorKey(next, "animal_draft");
+      return next;
+    });
     resetAnimalDraft();
   };
 
@@ -363,38 +513,18 @@ export default function AddLivestockForm() {
   };
 
   const validateBatch = () => {
-    const required = [
-      ["inspection_time_start", "Inspection start time"],
-      ["inspection_time_end", "Inspection end time"],
-      ["owner_name", "Owner name"],
-      ["owner_barangay", "Owner barangay"],
-      ["animal_origin_barangay", "Animal origin barangay"],
-      ["animal_destination", "Animal destination"],
-      ["vehicle_used", "Vehicle used"],
-      ["paid_number", "Paid number"],
-    ];
+    const errors = validateBatchFields(
+      batchData,
+      accountId,
+      queuedAnimals,
+      animalDraft
+    );
+    setBatchErrors(errors);
 
-    for (const [key, label] of required) {
-      if (!String(batchData[key] || "").trim()) {
-        Alert.alert("Error", `Please fill the field: ${label}`);
-        return false;
-      }
-    }
-
-    if (!accountId) {
-      Alert.alert("Error", "Account ID not retrieved.");
-      return false;
-    }
-
-    if (queuedAnimals.length === 0) {
-      Alert.alert("No animals queued", "Add at least one animal first.");
-      return false;
-    }
-
-    if (hasDraftValues(animalDraft)) {
+    if (hasValidationErrors(errors)) {
       Alert.alert(
-        "Unsaved animal entry",
-        "Add or clear the current animal draft before submitting."
+        "Complete the batch details",
+        "Please review the highlighted batch fields before submitting."
       );
       return false;
     }
@@ -463,6 +593,7 @@ export default function AddLivestockForm() {
       setBatchId(data.batch_id || "");
       setQrExpiry(data.qr_expiration || getDefaultExpiry());
       setSubmitted(true);
+      setBatchErrors({});
       resetAnimalDraft();
 
       Alert.alert(
@@ -598,6 +729,9 @@ export default function AddLivestockForm() {
     setOwnerMatches([]);
     setOwnerLookupLoading(false);
     setActiveDssId(null);
+    setBatchErrors({});
+    setAnimalErrors({});
+    setFocusedField("");
   };
 
   if (loadingAccount) {
@@ -628,13 +762,23 @@ export default function AddLivestockForm() {
     >
       <View style={styles.card}>
         <Text style={styles.heading}>Batch Details</Text>
+        <Text style={styles.sectionLead}>
+          Shared owner, route, and inspection information will apply to every
+          animal in this batch.
+        </Text>
+        {renderError(batchErrors.account_id)}
+        <Text style={styles.label}>Owner name</Text>
         <TextInput
-          style={styles.input}
+          style={getFieldShellStyle("owner_name", batchErrors.owner_name)}
           placeholder="Owner name"
+          placeholderTextColor={agriPalette.inkSoft}
           value={batchData.owner_name}
           editable={!submitted}
+          onFocus={() => setFocusedField("owner_name")}
+          onBlur={() => setFocusedField("")}
           onChangeText={onOwnerChange}
         />
+        {renderError(batchErrors.owner_name)}
         {ownerLookupLoading ? <Text style={styles.helper}>Searching owners...</Text> : null}
         {!submitted && ownerMatches.length > 0 ? (
           <View style={styles.listGap}>
@@ -653,7 +797,13 @@ export default function AddLivestockForm() {
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Owner barangay</Text>
-            <View style={styles.pickerWrap}>
+            <View
+              style={getFieldShellStyle(
+                "owner_barangay",
+                batchErrors.owner_barangay,
+                "picker"
+              )}
+            >
               <Picker
                 selectedValue={batchData.owner_barangay}
                 enabled={!submitted}
@@ -665,10 +815,17 @@ export default function AddLivestockForm() {
                 ))}
               </Picker>
             </View>
+            {renderError(batchErrors.owner_barangay)}
           </View>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Origin barangay</Text>
-            <View style={styles.pickerWrap}>
+            <View
+              style={getFieldShellStyle(
+                "animal_origin_barangay",
+                batchErrors.animal_origin_barangay,
+                "picker"
+              )}
+            >
               <Picker
                 selectedValue={batchData.animal_origin_barangay}
                 enabled={!submitted}
@@ -682,47 +839,86 @@ export default function AddLivestockForm() {
                 ))}
               </Picker>
             </View>
+            {renderError(batchErrors.animal_origin_barangay)}
           </View>
         </View>
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Inspection start</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={getFieldShellStyle(
+                "inspection_time_start",
+                batchErrors.inspection_time_start
+              )}
               disabled={submitted}
               onPress={() => {
+                setFocusedField("inspection_time_start");
                 setTimeKey("inspection_time_start");
                 setTimePickerVisible(true);
               }}
             >
-              <Text>{batchData.inspection_time_start || "Select time"}</Text>
+              <Text
+                style={[
+                  styles.inputValue,
+                  !batchData.inspection_time_start && styles.placeholderText,
+                ]}
+              >
+                {batchData.inspection_time_start || "Select time"}
+              </Text>
             </TouchableOpacity>
+            {renderError(batchErrors.inspection_time_start)}
           </View>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Inspection end</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={getFieldShellStyle(
+                "inspection_time_end",
+                batchErrors.inspection_time_end
+              )}
               disabled={submitted}
               onPress={() => {
+                setFocusedField("inspection_time_end");
                 setTimeKey("inspection_time_end");
                 setTimePickerVisible(true);
               }}
             >
-              <Text>{batchData.inspection_time_end || "Select time"}</Text>
+              <Text
+                style={[
+                  styles.inputValue,
+                  !batchData.inspection_time_end && styles.placeholderText,
+                ]}
+              >
+                {batchData.inspection_time_end || "Select time"}
+              </Text>
             </TouchableOpacity>
+            {renderError(batchErrors.inspection_time_end)}
           </View>
         </View>
+        <Text style={styles.label}>Animal destination</Text>
         <TextInput
-          style={styles.input}
+          style={getFieldShellStyle(
+            "animal_destination",
+            batchErrors.animal_destination
+          )}
           placeholder="Animal destination"
+          placeholderTextColor={agriPalette.inkSoft}
           value={batchData.animal_destination}
           editable={!submitted}
+          onFocus={() => setFocusedField("animal_destination")}
+          onBlur={() => setFocusedField("")}
           onChangeText={(value) => updateBatchData("animal_destination", value)}
         />
+        {renderError(batchErrors.animal_destination)}
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Vehicle used</Text>
-            <View style={styles.pickerWrap}>
+            <View
+              style={getFieldShellStyle(
+                "vehicle_used",
+                batchErrors.vehicle_used,
+                "picker"
+              )}
+            >
               <Picker
                 selectedValue={batchData.vehicle_used}
                 enabled={!submitted}
@@ -733,25 +929,43 @@ export default function AddLivestockForm() {
                 <Picker.Item label="Hauler" value="Hauler" />
               </Picker>
             </View>
+            {renderError(batchErrors.vehicle_used)}
           </View>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Paid number</Text>
             <TextInput
-              style={styles.input}
+              style={getFieldShellStyle("paid_number", batchErrors.paid_number)}
               value={batchData.paid_number}
               editable={!submitted}
+              keyboardType="number-pad"
+              placeholder="Paid number"
+              placeholderTextColor={agriPalette.inkSoft}
+              onFocus={() => setFocusedField("paid_number")}
+              onBlur={() => setFocusedField("")}
               onChangeText={(value) => updateBatchData("paid_number", value)}
             />
+            {renderError(batchErrors.paid_number)}
           </View>
         </View>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.heading}>{editingId ? "Edit Animal" : "Add Animal"}</Text>
+        <Text style={styles.sectionLead}>
+          Save one animal at a time so remarks, DSS results, and scheduling stay
+          linked to the correct record.
+        </Text>
+        {renderError(batchErrors.animal_draft)}
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Species</Text>
-            <View style={styles.pickerWrap}>
+            <View
+              style={getFieldShellStyle(
+                "animal_species",
+                animalErrors.animal_species,
+                "picker"
+              )}
+            >
               <Picker
                 selectedValue={animalDraft.animal_species}
                 enabled={!submitted}
@@ -763,48 +977,75 @@ export default function AddLivestockForm() {
                 <Picker.Item label="Cattle" value="Cattle" />
               </Picker>
             </View>
+            {renderError(animalErrors.animal_species)}
           </View>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Unique identifier</Text>
             <TextInput
-              style={styles.input}
+              style={getFieldShellStyle(
+                "animal_unique_identifier",
+                animalErrors.animal_unique_identifier
+              )}
               value={animalDraft.animal_unique_identifier}
               editable={!submitted}
+              placeholder="Ear tag or animal code"
+              placeholderTextColor={agriPalette.inkSoft}
+              onFocus={() => setFocusedField("animal_unique_identifier")}
+              onBlur={() => setFocusedField("")}
               onChangeText={(value) =>
                 updateAnimalDraft("animal_unique_identifier", value)
               }
             />
+            {renderError(animalErrors.animal_unique_identifier)}
           </View>
         </View>
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Live weight</Text>
             <TextInput
-              style={styles.input}
+              style={getFieldShellStyle("live_weight", animalErrors.live_weight)}
               value={animalDraft.live_weight}
               editable={!submitted}
               keyboardType="numeric"
+              placeholder="Weight in kilograms"
+              placeholderTextColor={agriPalette.inkSoft}
+              onFocus={() => setFocusedField("live_weight")}
+              onBlur={() => setFocusedField("")}
               onChangeText={(value) => updateAnimalDraft("live_weight", value)}
             />
+            {renderError(animalErrors.live_weight)}
           </View>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Purpose</Text>
             <TextInput
-              style={styles.input}
+              style={getFieldShellStyle("purpose", animalErrors.purpose)}
               value={animalDraft.purpose}
               editable={!submitted}
+              placeholder="Transport purpose"
+              placeholderTextColor={agriPalette.inkSoft}
+              onFocus={() => setFocusedField("purpose")}
+              onBlur={() => setFocusedField("")}
               onChangeText={(value) => updateAnimalDraft("purpose", value)}
             />
+            {renderError(animalErrors.purpose)}
           </View>
         </View>
         <Text style={styles.label}>Remarks</Text>
         <TextInput
-          style={[styles.input, styles.remarks]}
+          style={[
+            ...getFieldShellStyle("remarks", animalErrors.remarks),
+            styles.remarks,
+          ]}
           value={animalDraft.remarks}
           editable={!submitted}
           multiline
+          placeholder="Describe the animal condition for DSS checking"
+          placeholderTextColor={agriPalette.inkSoft}
+          onFocus={() => setFocusedField("remarks")}
+          onBlur={() => setFocusedField("")}
           onChangeText={(value) => updateAnimalDraft("remarks", value)}
         />
+        {renderError(animalErrors.remarks)}
         {!submitted ? (
           <View style={styles.listGap}>
             <AgriButton
@@ -827,6 +1068,7 @@ export default function AddLivestockForm() {
         <Text style={styles.heading}>
           {submitted ? "Submitted Animals" : "Queued Animals"}
         </Text>
+        {!submitted ? renderError(batchErrors.queued_animals) : null}
         {(submitted ? savedAnimals : queuedAnimals).length === 0 ? (
           <Text style={styles.helper}>No animals added yet.</Text>
         ) : (
@@ -962,10 +1204,12 @@ export default function AddLivestockForm() {
           updateBatchData(timeKey, timeString);
           setTimePickerVisible(false);
           setTimeKey("");
+          setFocusedField("");
         }}
         onCancel={() => {
           setTimePickerVisible(false);
           setTimeKey("");
+          setFocusedField("");
         }}
       />
     </DashboardShell>
@@ -975,44 +1219,100 @@ export default function AddLivestockForm() {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: agriPalette.surface,
-    borderRadius: 28,
+    borderRadius: 30,
     borderWidth: 1,
     borderColor: agriPalette.border,
-    padding: 18,
+    padding: 20,
     marginBottom: 16,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 3,
   },
   heading: {
     color: agriPalette.ink,
     fontSize: 22,
     fontWeight: "900",
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  sectionLead: {
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 16,
   },
   label: {
     color: agriPalette.fieldDeep,
     fontSize: 13,
     fontWeight: "800",
-    marginBottom: 6,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: "#FCFAF4",
+  inputShell: {
+    minHeight: 58,
+    borderWidth: 2,
+    borderColor: "#BCC8AE",
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: agriPalette.white,
     marginBottom: 12,
+    color: agriPalette.ink,
+    fontSize: 15,
+    shadowColor: "#173223",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 1,
+  },
+  fieldShellFocused: {
+    borderColor: agriPalette.field,
+    backgroundColor: "#FFFDF8",
+  },
+  fieldShellError: {
+    borderColor: agriPalette.redClay,
+    backgroundColor: "#FFF8F4",
+  },
+  fieldShellDisabled: {
+    opacity: 0.72,
   },
   remarks: {
     minHeight: 96,
     textAlignVertical: "top",
   },
   pickerWrap: {
-    borderWidth: 1,
-    borderColor: agriPalette.border,
-    borderRadius: 16,
+    minHeight: 58,
+    borderWidth: 2,
+    borderColor: "#BCC8AE",
+    borderRadius: 18,
     overflow: "hidden",
-    backgroundColor: "#FCFAF4",
+    backgroundColor: agriPalette.white,
     marginBottom: 12,
+    justifyContent: "center",
+    shadowColor: "#173223",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 1,
+  },
+  inputValue: {
+    color: agriPalette.ink,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  placeholderText: {
+    color: agriPalette.inkSoft,
+    fontWeight: "600",
+  },
+  errorText: {
+    marginTop: -4,
+    marginBottom: 12,
+    color: agriPalette.redClay,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
   },
   row: {
     gap: 12,
