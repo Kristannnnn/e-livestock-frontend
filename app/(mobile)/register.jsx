@@ -3,7 +3,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -20,11 +19,16 @@ import {
   useTheme,
 } from "react-native-paper";
 import AgriButton from "../../components/AgriButton";
+import FeedbackBanner from "../../components/FeedbackBanner";
 import { apiRoutes, apiUrl } from "../../lib/api";
 import { agriPaperTheme, agriPalette } from "../../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.auth.register);
 const API_SEND_OTP = apiUrl(apiRoutes.auth.sendOtp);
+
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export default function Register() {
   return (
@@ -50,6 +54,7 @@ function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [secureText, setSecureText] = useState(true);
+  const [notice, setNotice] = useState(null);
 
   const isValidEmail = (value) => value.includes("@");
   const isValidPhone = (value) => value.length === 11;
@@ -64,24 +69,38 @@ function RegisterScreen() {
       !username ||
       !password
     ) {
-      Alert.alert("Error", "Please fill in all fields.");
+      setNotice({
+        tone: "error",
+        title: "Missing details",
+        message: "Please fill in all registration fields before creating your account.",
+      });
       return;
     }
 
     if (!isValidEmail(email)) {
-      Alert.alert("Invalid Email", "Email must contain @");
+      setNotice({
+        tone: "warning",
+        title: "Invalid email",
+        message: "Use a valid email address because registration ends with OTP verification.",
+      });
       return;
     }
 
     if (!isValidPhone(phone)) {
-      Alert.alert(
-        "Invalid Phone Number",
-        "Phone number must be exactly 11 digits."
-      );
+      setNotice({
+        tone: "warning",
+        title: "Invalid phone number",
+        message: "Phone number must be exactly 11 digits.",
+      });
       return;
     }
 
     setLoading(true);
+    setNotice({
+      tone: "info",
+      title: "Creating your account",
+      message: "Saving your owner profile and preparing your email verification step.",
+    });
 
     try {
       const response = await fetch(API_URL, {
@@ -102,7 +121,11 @@ function RegisterScreen() {
       const result = rawText ? JSON.parse(rawText) : {};
 
       if (!result.success) {
-        Alert.alert("Error", result.message || "Registration failed.");
+        setNotice({
+          tone: "error",
+          title: "Registration failed",
+          message: result.message || "Registration failed.",
+        });
         return;
       }
 
@@ -119,18 +142,31 @@ function RegisterScreen() {
       const otpResult = otpText ? JSON.parse(otpText) : {};
 
       if (!otpResult.success) {
-        Alert.alert("Error", otpResult.message || "Failed to send OTP.");
+        setNotice({
+          tone: "error",
+          title: "OTP not sent",
+          message: otpResult.message || "Failed to send OTP.",
+        });
         return;
       }
 
-      Alert.alert("Success", "OTP sent to your email.");
+      setNotice({
+        tone: "success",
+        title: "Account created",
+        message: "Your OTP is on the way. Opening the email verification step now.",
+      });
+      await pause(700);
       router.replace({
         pathname: "/verifyOtp",
         params: { email: email.trim().toLowerCase(), purpose: "register" },
       });
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", "Network or server error.");
+      setNotice({
+        tone: "error",
+        title: "Request failed",
+        message: "Network or server error.",
+      });
     } finally {
       setLoading(false);
     }
@@ -233,6 +269,15 @@ function RegisterScreen() {
                 Enter your personal and contact details, then we will send an OTP
                 to verify your email before you sign in.
               </Text>
+
+              {notice ? (
+                <FeedbackBanner
+                  tone={notice.tone}
+                  title={notice.title}
+                  message={notice.message}
+                  style={styles.noticeBanner}
+                />
+              ) : null}
 
               <View style={styles.helperCard}>
                 <View style={styles.helperIconWrap}>
@@ -609,10 +654,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  noticeBanner: {
+    marginTop: 16,
+    marginBottom: 18,
+  },
   helperCard: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginTop: 18,
     marginBottom: 18,
     paddingHorizontal: 14,
     paddingVertical: 14,

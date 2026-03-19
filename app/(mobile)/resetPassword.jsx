@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { TextInput } from "react-native-paper";
 import AgriButton from "../../components/AgriButton";
 import AuthRecoveryShell from "../../components/AuthRecoveryShell";
+import FeedbackBanner from "../../components/FeedbackBanner";
 import { apiRoutes, apiUrl } from "../../lib/api";
 import { agriPalette } from "../../constants/agriTheme";
 
@@ -12,6 +13,10 @@ const API_RESET_PASSWORD = apiUrl(apiRoutes.auth.resetPassword);
 
 function getParamValue(value) {
   return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export default function ResetPassword() {
@@ -23,31 +28,60 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [securePassword, setSecurePassword] = useState(true);
   const [secureConfirm, setSecureConfirm] = useState(true);
+  const [notice, setNotice] = useState(null);
 
   useEffect(() => {
     if (!email) {
-      Alert.alert("Error", "Missing email. Returning to login.");
-      router.replace("/");
+      setNotice({
+        tone: "error",
+        title: "Missing email",
+        message: "Returning to login so you can restart the recovery flow safely.",
+      });
+
+      const timeoutId = setTimeout(() => {
+        router.replace("/");
+      }, 900);
+
+      return () => clearTimeout(timeoutId);
     }
+
+    return undefined;
   }, [email, router]);
 
   const resetPassword = async () => {
     if (!password || !confirm) {
-      Alert.alert("Error", "All fields are required.");
+      setNotice({
+        tone: "error",
+        title: "Missing fields",
+        message: "Enter both password fields before updating your account password.",
+      });
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters.");
+      setNotice({
+        tone: "warning",
+        title: "Password too short",
+        message: "Use at least 6 characters for your new password.",
+      });
       return;
     }
 
     if (password !== confirm) {
-      Alert.alert("Error", "Passwords do not match.");
+      setNotice({
+        tone: "error",
+        title: "Passwords do not match",
+        message: "Make sure both password entries are exactly the same.",
+      });
       return;
     }
 
     setLoading(true);
+    setNotice({
+      tone: "info",
+      title: "Updating password",
+      message: "Saving your new login password and securing your account.",
+    });
 
     try {
       const response = await fetch(API_RESET_PASSWORD, {
@@ -59,15 +93,27 @@ export default function ResetPassword() {
       const result = await response.json();
 
       if (result.success) {
-        Alert.alert("Success", "Password reset successfully.", [
-          { text: "Login", onPress: () => router.replace("/") },
-        ]);
+        setNotice({
+          tone: "success",
+          title: "Password reset complete",
+          message: "Your new password is ready. Returning you to login now.",
+        });
+        await pause(800);
+        router.replace({ pathname: "/", params: { notice: "password_reset" } });
       } else {
-        Alert.alert("Error", result.message || "Failed to reset password.");
+        setNotice({
+          tone: "error",
+          title: "Password reset failed",
+          message: result.message || "Failed to reset password.",
+        });
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", error.message || "Unable to reset password.");
+      setNotice({
+        tone: "error",
+        title: "Update failed",
+        message: error.message || "Unable to reset password.",
+      });
     } finally {
       setLoading(false);
     }
@@ -86,6 +132,15 @@ export default function ResetPassword() {
         Choose a new password for the account below. Use something secure and
         memorable so you can get back to your dashboard without friction.
       </Text>
+
+      {notice ? (
+        <FeedbackBanner
+          tone={notice.tone}
+          title={notice.title}
+          message={notice.message}
+          style={styles.noticeBanner}
+        />
+      ) : null}
 
       <View style={styles.accountCard}>
         <View style={styles.accountIconWrap}>
@@ -211,6 +266,9 @@ const styles = StyleSheet.create({
     color: agriPalette.inkSoft,
     fontSize: 15,
     lineHeight: 22,
+  },
+  noticeBanner: {
+    marginTop: 18,
   },
   accountCard: {
     flexDirection: "row",

@@ -1,10 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Slot, usePathname, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Provider as PaperProvider } from "react-native-paper";
 import { agriPalette, agriPaperTheme } from "../../constants/agriTheme";
+import {
+  syncAccountPushToken,
+  unregisterAccountPushToken,
+} from "../../lib/notifications/deviceNotifications";
 
 const HIDE_FOOTER_SCREENS = new Set([
   "/register",
@@ -120,22 +124,38 @@ export default function ScreensLayout() {
   const path = usePathname();
   const router = useRouter();
   const [role, setRole] = useState("");
+  const pushSyncAttemptedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
     const loadRole = async () => {
       try {
-        const [storedRole, storedUser] = await Promise.all([
+        const [storedRole, storedUser, storedAccountId] = await Promise.all([
           AsyncStorage.getItem("role"),
           AsyncStorage.getItem("user"),
+          AsyncStorage.getItem("account_id"),
         ]);
 
         const parsedUser = storedUser ? JSON.parse(storedUser) : {};
         const nextRole = storedRole || parsedUser.account_type || "";
+        const parsedAccountId = parseInt(
+          storedAccountId || parsedUser.account_id || 0,
+          10,
+        );
 
         if (mounted) {
           setRole(nextRole);
+        }
+
+        if (!pushSyncAttemptedRef.current && parsedAccountId > 0) {
+          pushSyncAttemptedRef.current = true;
+
+          try {
+            await syncAccountPushToken(parsedAccountId);
+          } catch (error) {
+            console.error("Push registration error:", error);
+          }
         }
       } catch (error) {
         console.error("Unable to load footer role:", error);
@@ -163,6 +183,12 @@ export default function ScreensLayout() {
           style: "destructive",
           onPress: async () => {
             try {
+              const storedAccountId = parseInt(
+                (await AsyncStorage.getItem("account_id")) || "0",
+                10,
+              );
+
+              await unregisterAccountPushToken(storedAccountId);
               await AsyncStorage.clear();
               router.replace("/");
             } catch (err) {

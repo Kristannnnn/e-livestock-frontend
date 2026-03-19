@@ -1,34 +1,53 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { TextInput } from "react-native-paper";
 import AgriButton from "../../components/AgriButton";
 import AuthRecoveryShell from "../../components/AuthRecoveryShell";
+import FeedbackBanner from "../../components/FeedbackBanner";
 import { apiRoutes, apiUrl } from "../../lib/api";
 import { agriPalette } from "../../constants/agriTheme";
 
 const API_SEND_OTP = apiUrl(apiRoutes.auth.sendOtp);
 
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function SendOtp() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState(null);
 
   const sendOTP = async () => {
     const trimmedEmail = email.trim().toLowerCase();
 
     if (!trimmedEmail) {
-      Alert.alert("Error", "Enter the email linked to your account.");
+      setNotice({
+        tone: "error",
+        title: "Email required",
+        message: "Enter the email linked to your account before requesting a recovery code.",
+      });
       return;
     }
 
     if (!trimmedEmail.includes("@")) {
-      Alert.alert("Invalid email", "Enter a valid email address.");
+      setNotice({
+        tone: "warning",
+        title: "Invalid email",
+        message: "Enter a valid email address so we can send the OTP to the right inbox.",
+      });
       return;
     }
 
     setLoading(true);
+    setNotice({
+      tone: "info",
+      title: "Sending recovery code",
+      message: "We are preparing a one-time password for your account email.",
+    });
 
     try {
       const response = await fetch(API_SEND_OTP, {
@@ -40,17 +59,30 @@ export default function SendOtp() {
       const result = rawText ? JSON.parse(rawText) : {};
 
       if (result.success) {
-        Alert.alert("Success", "OTP sent to your email.");
+        setNotice({
+          tone: "success",
+          title: "Recovery code sent",
+          message: "Check your inbox and spam folder. We are opening the verification step now.",
+        });
+        await pause(700);
         router.push({
           pathname: "/verifyOtp",
           params: { email: trimmedEmail, purpose: "reset" },
         });
       } else {
-        Alert.alert("Error", result.message || "Failed to send OTP.");
+        setNotice({
+          tone: "error",
+          title: "Unable to send OTP",
+          message: result.message || "Failed to send OTP.",
+        });
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", error.message || "Unable to send OTP.");
+      setNotice({
+        tone: "error",
+        title: "Request failed",
+        message: error.message || "Unable to send OTP.",
+      });
     } finally {
       setLoading(false);
     }
@@ -69,6 +101,15 @@ export default function SendOtp() {
         Use the same email address you registered with. Once the code arrives,
         you can move to the OTP verification step right away.
       </Text>
+
+      {notice ? (
+        <FeedbackBanner
+          tone={notice.tone}
+          title={notice.title}
+          message={notice.message}
+          style={styles.noticeBanner}
+        />
+      ) : null}
 
       <View style={styles.infoCard}>
         <View style={styles.infoIconWrap}>
@@ -159,6 +200,9 @@ const styles = StyleSheet.create({
     color: agriPalette.inkSoft,
     fontSize: 15,
     lineHeight: 22,
+  },
+  noticeBanner: {
+    marginTop: 18,
   },
   infoCard: {
     flexDirection: "row",

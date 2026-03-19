@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { TextInput } from "react-native-paper";
 import AgriButton from "../../components/AgriButton";
 import AuthRecoveryShell from "../../components/AuthRecoveryShell";
+import FeedbackBanner from "../../components/FeedbackBanner";
 import { apiRoutes, apiUrl } from "../../lib/api";
 import { agriPalette } from "../../constants/agriTheme";
 
@@ -14,6 +15,10 @@ function getParamValue(value) {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function VerifyOtp() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -21,23 +26,44 @@ export default function VerifyOtp() {
   const purpose = getParamValue(params.purpose) || "reset";
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState(null);
 
   useEffect(() => {
     if (!email) {
-      Alert.alert("Error", "Missing email. Returning to login.");
-      router.replace("/");
+      setNotice({
+        tone: "error",
+        title: "Missing email",
+        message: "Returning to login so you can restart the recovery flow from the beginning.",
+      });
+
+      const timeoutId = setTimeout(() => {
+        router.replace("/");
+      }, 900);
+
+      return () => clearTimeout(timeoutId);
     }
+
+    return undefined;
   }, [email, router]);
 
   const handleVerifyOtp = async () => {
     const trimmedOtp = otp.replace(/\D/g, "").slice(0, 6);
 
     if (!trimmedOtp) {
-      Alert.alert("Error", "Enter the OTP sent to your email.");
+      setNotice({
+        tone: "error",
+        title: "OTP required",
+        message: "Enter the 6-digit code sent to your email before continuing.",
+      });
       return;
     }
 
     setLoading(true);
+    setNotice({
+      tone: "info",
+      title: "Verifying your code",
+      message: "We are checking the OTP against your account details now.",
+    });
 
     try {
       const response = await fetch(VERIFY_OTP_URL, {
@@ -48,20 +74,36 @@ export default function VerifyOtp() {
       const result = await response.json();
 
       if (!result.success) {
-        Alert.alert("Error", result.message || "Invalid OTP.");
+        setNotice({
+          tone: "error",
+          title: "OTP verification failed",
+          message: result.message || "Invalid OTP.",
+        });
         return;
       }
 
-      Alert.alert("Success", "OTP verified successfully.");
+      setNotice({
+        tone: "success",
+        title: "OTP verified",
+        message:
+          purpose === "register"
+            ? "Your email is confirmed. Returning you to login now."
+            : "Your recovery code is valid. Opening the password reset step now.",
+      });
+      await pause(700);
 
       if (purpose === "register") {
-        router.replace("/");
+        router.replace({ pathname: "/", params: { notice: "email_verified" } });
       } else if (purpose === "reset") {
         router.replace({ pathname: "/resetPassword", params: { email } });
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", error.message || "Network error.");
+      setNotice({
+        tone: "error",
+        title: "Verification failed",
+        message: error.message || "Network error.",
+      });
     } finally {
       setLoading(false);
     }
@@ -80,6 +122,15 @@ export default function VerifyOtp() {
         We sent a code to the email below. Enter it exactly as received to move
         to the final reset step.
       </Text>
+
+      {notice ? (
+        <FeedbackBanner
+          tone={notice.tone}
+          title={notice.title}
+          message={notice.message}
+          style={styles.noticeBanner}
+        />
+      ) : null}
 
       <View style={styles.emailCard}>
         <View style={styles.emailIconWrap}>
@@ -168,6 +219,9 @@ const styles = StyleSheet.create({
     color: agriPalette.inkSoft,
     fontSize: 15,
     lineHeight: 22,
+  },
+  noticeBanner: {
+    marginTop: 18,
   },
   emailCard: {
     flexDirection: "row",

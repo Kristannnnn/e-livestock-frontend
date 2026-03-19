@@ -1,10 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -21,10 +20,41 @@ import {
   useTheme,
 } from "react-native-paper";
 import AgriButton from "../components/AgriButton";
+import FeedbackBanner from "../components/FeedbackBanner";
 import { apiRoutes, apiUrl } from "../lib/api";
 import { agriPalette, agriPaperTheme } from "../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.auth.login);
+
+function getParamValue(value) {
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function buildAuthNotice(noticeKey) {
+  const key = String(noticeKey || "").trim().toLowerCase();
+
+  if (key === "password_reset") {
+    return {
+      tone: "success",
+      title: "Password updated",
+      message: "Sign in with your new password to continue to your dashboard.",
+    };
+  }
+
+  if (key === "email_verified") {
+    return {
+      tone: "success",
+      title: "Email verified",
+      message: "Your account is ready. Sign in to start using e-Livestock.",
+    };
+  }
+
+  return null;
+}
+
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export default function Login() {
   return (
@@ -36,6 +66,7 @@ export default function Login() {
 
 function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const isWide = width >= 920;
@@ -44,15 +75,29 @@ function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [secureText, setSecureText] = useState(true);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    setNotice(buildAuthNotice(getParamValue(params.notice)));
+  }, [params.notice]);
 
   const handleLogin = async () => {
     if (!username || !password) {
-      Alert.alert("Error", "Please enter both username and password.");
+      setNotice({
+        tone: "error",
+        title: "Missing credentials",
+        message: "Please enter both username and password before signing in.",
+      });
       return;
     }
 
     try {
       setLoading(true);
+      setNotice({
+        tone: "info",
+        title: "Signing you in",
+        message: "Checking your account details and opening your workspace.",
+      });
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,7 +137,12 @@ function LoginScreen() {
           ["user", JSON.stringify(result.user)],
         ]);
 
-        Alert.alert("Success", "Login successful.");
+        setNotice({
+          tone: "success",
+          title: "Signed in successfully",
+          message: "Your dashboard is opening now.",
+        });
+        await pause(650);
 
         switch (result.user.account_type) {
           case "user":
@@ -108,15 +158,27 @@ function LoginScreen() {
             router.replace("/livestockInspectorDashboard");
             break;
           default:
-            Alert.alert("Login Failed", "Unknown account type.");
+            setNotice({
+              tone: "error",
+              title: "Unknown account type",
+              message: "This account does not have a supported dashboard yet.",
+            });
         }
       } else {
-        Alert.alert("Login Failed", result.message || "Invalid credentials.");
+        setNotice({
+          tone: "error",
+          title: "Login failed",
+          message: result.message || "Invalid credentials.",
+        });
       }
     } catch (error) {
       setLoading(false);
       console.error("Login error:", error);
-      Alert.alert("Error", error.message || "Something went wrong.");
+      setNotice({
+        tone: "error",
+        title: "Unable to sign in",
+        message: error.message || "Something went wrong.",
+      });
     }
   };
 
@@ -206,6 +268,15 @@ function LoginScreen() {
                 Access your e-Livestock account and continue your field
                 operations.
               </Text>
+
+              {notice ? (
+                <FeedbackBanner
+                  tone={notice.tone}
+                  title={notice.title}
+                  message={notice.message}
+                  style={styles.noticeBanner}
+                />
+              ) : null}
 
               <TextInput
                 label="Username"
@@ -460,6 +531,9 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 14,
     backgroundColor: agriPalette.white,
+  },
+  noticeBanner: {
+    marginBottom: 16,
   },
   linkWrap: {
     alignSelf: "flex-end",
