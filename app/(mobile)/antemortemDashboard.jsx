@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
@@ -14,6 +15,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [firstName, setFirstName] = useState("");
   const [analytics, setAnalytics] = useState({
     slaughtered: 0,
     scheduled: 0,
@@ -51,6 +53,17 @@ export default function DashboardScreen() {
   }
 
   useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem("user");
+        const parsedUser = storedUser ? JSON.parse(storedUser) : {};
+        setFirstName(parsedUser.first_name || "");
+      } catch (error) {
+        console.error("Failed to load antemortem session:", error);
+      }
+    };
+
+    loadSession();
     fetchAnalytics();
   }, []);
 
@@ -86,9 +99,13 @@ export default function DashboardScreen() {
   return (
     <DashboardShell
       eyebrow="Antemortem inspection"
-      profilePlacement="panel"
-      title="Animal movement overview"
-      subtitle="Follow slaughter preparation, scheduled inspections, and pending checks through a cleaner dashboard tuned to agriculture workflows."
+      profilePlacement="inlineTitle"
+      title={
+        firstName
+          ? `Welcome back, Dr. ${firstName}`
+          : "Welcome back, Antemortem Inspector"
+      }
+      subtitle="Follow slaughter preparation, scheduled inspections, and pending checks from a dashboard that keeps your profile and next actions visible right away."
       summary={
         loading
           ? "Refreshing antemortem analytics..."

@@ -1,10 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Picker } from "@react-native-picker/picker";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,7 +15,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import DateTimePickerModal from "react-native-modal-datetime-picker";
 import AgriButton from "../../components/AgriButton";
 import DashboardShell from "../../components/DashboardShell";
 import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
@@ -71,6 +73,22 @@ const BARANGAYS = [
   "Tula-tula",
   "Vigaan",
   "Yabo",
+];
+
+const BARANGAY_OPTIONS = BARANGAYS.map((barangay) => ({
+  label: barangay,
+  value: barangay,
+}));
+
+const VEHICLE_OPTIONS = [
+  { label: "Jeep", value: "Jeep" },
+  { label: "Hauler", value: "Hauler" },
+];
+
+const SPECIES_OPTIONS = [
+  { label: "Hog", value: "Hog", icon: "pig" },
+  { label: "Bovine", value: "Bovine", icon: "cow" },
+  { label: "Cattle", value: "Cattle", icon: "cow" },
 ];
 
 const createBatchData = (inspector = "") => ({
@@ -160,6 +178,27 @@ function parseTimeValue(value) {
   }
 
   return parsed.getHours() * 60 + parsed.getMinutes();
+}
+
+function getCurrentInspectionTime() {
+  return new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getAnimalSpeciesIcon(species) {
+  const normalized = normalizeValue(species);
+
+  if (normalized === "hog") {
+    return "pig";
+  }
+
+  if (normalized === "cattle" || normalized === "bovine") {
+    return "cow";
+  }
+
+  return "paw";
 }
 
 function validateAnimalFields(animalDraft, queuedAnimals, editingId) {
@@ -294,8 +333,6 @@ export default function AddLivestockForm() {
   const [batchId, setBatchId] = useState("");
   const [qrExpiry, setQrExpiry] = useState("");
   const [loadingAccount, setLoadingAccount] = useState(true);
-  const [timePickerVisible, setTimePickerVisible] = useState(false);
-  const [timeKey, setTimeKey] = useState("");
   const [selectedOwner, setSelectedOwner] = useState(null);
   const [ownerMatches, setOwnerMatches] = useState([]);
   const [ownerLookupLoading, setOwnerLookupLoading] = useState(false);
@@ -303,6 +340,7 @@ export default function AddLivestockForm() {
   const [batchErrors, setBatchErrors] = useState({});
   const [animalErrors, setAnimalErrors] = useState({});
   const [focusedField, setFocusedField] = useState("");
+  const [selectSheet, setSelectSheet] = useState(null);
   const [renewalContext, setRenewalContext] = useState(null);
   const [loadingRenewal, setLoadingRenewal] = useState(false);
 
@@ -537,6 +575,135 @@ export default function AddLivestockForm() {
   const renderError = (message) =>
     message ? <Text style={styles.errorText}>{message}</Text> : null;
 
+  const openSelectSheet = ({
+    fieldKey,
+    label,
+    placeholder,
+    options,
+    value,
+    onSelect,
+    helperText,
+    icon,
+  }) => {
+    if (submitted) {
+      return;
+    }
+
+    setFocusedField(fieldKey);
+    setSelectSheet({
+      fieldKey,
+      label,
+      placeholder,
+      options,
+      value,
+      onSelect,
+      helperText,
+      icon,
+    });
+  };
+
+  const closeSelectSheet = () => {
+    setSelectSheet(null);
+    setFocusedField("");
+  };
+
+  const handleSelectOption = (value) => {
+    if (!selectSheet?.onSelect) {
+      closeSelectSheet();
+      return;
+    }
+
+    selectSheet.onSelect(value);
+    closeSelectSheet();
+  };
+
+  const renderSelectField = ({
+    label,
+    fieldKey,
+    value,
+    placeholder,
+    options,
+    onSelect,
+    errorMessage,
+    helperText,
+    icon = "chevron-down-circle-outline",
+  }) => {
+    const hasValue = Boolean(normalizeValue(value));
+    const selectedOption = options.find((option) => option.value === value);
+    const displayText = selectedOption?.label || placeholder;
+    const selectedIcon = selectedOption?.icon || icon;
+
+    return (
+      <View>
+        <Text style={styles.label}>{label}</Text>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          disabled={submitted}
+          style={getFieldShellStyle(fieldKey, errorMessage, "picker")}
+          onPress={() =>
+            openSelectSheet({
+              fieldKey,
+              label,
+              placeholder,
+              options,
+              value,
+              onSelect,
+              helperText,
+              icon,
+            })
+          }
+        >
+          <View style={styles.selectTriggerContent}>
+            <View style={styles.selectLeadingWrap}>
+              <View
+                style={[
+                  styles.selectIconShell,
+                  hasValue && styles.selectIconShellActive,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={selectedIcon}
+                  size={18}
+                  color={hasValue ? agriPalette.white : agriPalette.fieldDeep}
+                />
+              </View>
+              <View style={styles.selectTextWrap}>
+                <Text
+                  style={[
+                    styles.selectValueText,
+                    !hasValue && styles.placeholderText,
+                  ]}
+                >
+                  {displayText}
+                </Text>
+                <Text style={styles.selectHintText}>
+                  {helperText ||
+                    (hasValue
+                      ? "Tap to change this selection"
+                      : "Tap to choose an option")}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.selectTrailingWrap}>
+              {hasValue ? (
+                <View style={styles.selectStatusChip}>
+                  <Text style={styles.selectStatusChipText}>Selected</Text>
+                </View>
+              ) : null}
+              <MaterialCommunityIcons
+                name="chevron-down"
+                size={22}
+                color={agriPalette.field}
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+        {renderError(errorMessage)}
+      </View>
+    );
+  };
+
   const onOwnerChange = (value) => {
     updateBatchData("owner_name", value);
 
@@ -564,6 +731,28 @@ export default function AddLivestockForm() {
       owner_city: parsed.city || prev.owner_city,
       owner_province: parsed.province || prev.owner_province,
     }));
+  };
+
+  const stampInspectionTimeNow = (fieldKey) => {
+    if (submitted) {
+      return;
+    }
+
+    setFocusedField(fieldKey);
+    updateBatchData(fieldKey, getCurrentInspectionTime());
+
+    setTimeout(() => {
+      setFocusedField((current) => (current === fieldKey ? "" : current));
+    }, 220);
+  };
+
+  const resetInspectionTime = (fieldKey) => {
+    if (submitted) {
+      return;
+    }
+
+    updateBatchData(fieldKey, "");
+    setFocusedField("");
   };
 
   const resetAnimalDraft = () => {
@@ -969,50 +1158,37 @@ export default function AddLivestockForm() {
         ) : null}
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
-            <Text style={styles.label}>Owner barangay</Text>
-            <View
-              style={getFieldShellStyle(
-                "owner_barangay",
-                batchErrors.owner_barangay,
-                "picker"
-              )}
-            >
-              <Picker
-                selectedValue={batchData.owner_barangay}
-                enabled={!submitted}
-                onValueChange={(value) => updateBatchData("owner_barangay", value)}
-              >
-                <Picker.Item label="Select Barangay" value="" />
-                {BARANGAYS.map((barangay) => (
-                  <Picker.Item key={barangay} label={barangay} value={barangay} />
-                ))}
-              </Picker>
-            </View>
-            {renderError(batchErrors.owner_barangay)}
+            {renderSelectField({
+              label: "Owner barangay",
+              fieldKey: "owner_barangay",
+              value: batchData.owner_barangay,
+              placeholder: "Select Barangay",
+              options: [
+                { label: "No barangay selected", value: "" },
+                ...BARANGAY_OPTIONS,
+              ],
+              onSelect: (value) => updateBatchData("owner_barangay", value),
+              errorMessage: batchErrors.owner_barangay,
+              helperText: "Match the owner's recorded address area",
+              icon: "map-marker-radius-outline",
+            })}
           </View>
           <View style={styles.flexItem}>
-            <Text style={styles.label}>Origin barangay</Text>
-            <View
-              style={getFieldShellStyle(
-                "animal_origin_barangay",
-                batchErrors.animal_origin_barangay,
-                "picker"
-              )}
-            >
-              <Picker
-                selectedValue={batchData.animal_origin_barangay}
-                enabled={!submitted}
-                onValueChange={(value) =>
-                  updateBatchData("animal_origin_barangay", value)
-                }
-              >
-                <Picker.Item label="Select Barangay" value="" />
-                {BARANGAYS.map((barangay) => (
-                  <Picker.Item key={barangay} label={barangay} value={barangay} />
-                ))}
-              </Picker>
-            </View>
-            {renderError(batchErrors.animal_origin_barangay)}
+            {renderSelectField({
+              label: "Origin barangay",
+              fieldKey: "animal_origin_barangay",
+              value: batchData.animal_origin_barangay,
+              placeholder: "Select Barangay",
+              options: [
+                { label: "No barangay selected", value: "" },
+                ...BARANGAY_OPTIONS,
+              ],
+              onSelect: (value) =>
+                updateBatchData("animal_origin_barangay", value),
+              errorMessage: batchErrors.animal_origin_barangay,
+              helperText: "Choose where the animals are coming from",
+              icon: "map-marker-path",
+            })}
           </View>
         </View>
         <View style={[styles.row, isTablet && styles.rowWide]}>
@@ -1021,24 +1197,66 @@ export default function AddLivestockForm() {
             <TouchableOpacity
               style={getFieldShellStyle(
                 "inspection_time_start",
-                batchErrors.inspection_time_start
+                batchErrors.inspection_time_start,
+                "picker"
               )}
               disabled={submitted}
-              onPress={() => {
-                setFocusedField("inspection_time_start");
-                setTimeKey("inspection_time_start");
-                setTimePickerVisible(true);
-              }}
+              onPress={() => stampInspectionTimeNow("inspection_time_start")}
             >
-              <Text
-                style={[
-                  styles.inputValue,
-                  !batchData.inspection_time_start && styles.placeholderText,
-                ]}
-              >
-                {batchData.inspection_time_start || "Select time"}
-              </Text>
+              <View style={styles.timeButtonContent}>
+                <View style={styles.timeButtonLeading}>
+                  <View
+                    style={[
+                      styles.timeButtonIconShell,
+                      batchData.inspection_time_start &&
+                        styles.timeButtonIconShellActive,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name="clock-start"
+                      size={18}
+                      color={
+                        batchData.inspection_time_start
+                          ? agriPalette.white
+                          : agriPalette.fieldDeep
+                      }
+                    />
+                  </View>
+                  <View style={styles.timeButtonTextWrap}>
+                    <Text
+                      style={[
+                        styles.selectValueText,
+                        !batchData.inspection_time_start && styles.placeholderText,
+                      ]}
+                    >
+                      {batchData.inspection_time_start || "Tap to use current time"}
+                    </Text>
+                    <Text style={styles.selectHintText}>
+                      Stamp the time when inspection starts
+                    </Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons
+                  name="gesture-tap-button"
+                  size={21}
+                  color={agriPalette.field}
+                />
+              </View>
             </TouchableOpacity>
+            {batchData.inspection_time_start ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.timeResetButton}
+                onPress={() => resetInspectionTime("inspection_time_start")}
+              >
+                <MaterialCommunityIcons
+                  name="refresh"
+                  size={16}
+                  color={agriPalette.redClay}
+                />
+                <Text style={styles.timeResetButtonText}>Reset start time</Text>
+              </TouchableOpacity>
+            ) : null}
             {renderError(batchErrors.inspection_time_start)}
           </View>
           <View style={styles.flexItem}>
@@ -1046,24 +1264,66 @@ export default function AddLivestockForm() {
             <TouchableOpacity
               style={getFieldShellStyle(
                 "inspection_time_end",
-                batchErrors.inspection_time_end
+                batchErrors.inspection_time_end,
+                "picker"
               )}
               disabled={submitted}
-              onPress={() => {
-                setFocusedField("inspection_time_end");
-                setTimeKey("inspection_time_end");
-                setTimePickerVisible(true);
-              }}
+              onPress={() => stampInspectionTimeNow("inspection_time_end")}
             >
-              <Text
-                style={[
-                  styles.inputValue,
-                  !batchData.inspection_time_end && styles.placeholderText,
-                ]}
-              >
-                {batchData.inspection_time_end || "Select time"}
-              </Text>
+              <View style={styles.timeButtonContent}>
+                <View style={styles.timeButtonLeading}>
+                  <View
+                    style={[
+                      styles.timeButtonIconShell,
+                      batchData.inspection_time_end &&
+                        styles.timeButtonIconShellActive,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name="clock-end"
+                      size={18}
+                      color={
+                        batchData.inspection_time_end
+                          ? agriPalette.white
+                          : agriPalette.fieldDeep
+                      }
+                    />
+                  </View>
+                  <View style={styles.timeButtonTextWrap}>
+                    <Text
+                      style={[
+                        styles.selectValueText,
+                        !batchData.inspection_time_end && styles.placeholderText,
+                      ]}
+                    >
+                      {batchData.inspection_time_end || "Tap to use current time"}
+                    </Text>
+                    <Text style={styles.selectHintText}>
+                      Stamp the time when inspection ends
+                    </Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons
+                  name="gesture-tap-button"
+                  size={21}
+                  color={agriPalette.field}
+                />
+              </View>
             </TouchableOpacity>
+            {batchData.inspection_time_end ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.timeResetButton}
+                onPress={() => resetInspectionTime("inspection_time_end")}
+              >
+                <MaterialCommunityIcons
+                  name="refresh"
+                  size={16}
+                  color={agriPalette.redClay}
+                />
+                <Text style={styles.timeResetButtonText}>Reset end time</Text>
+              </TouchableOpacity>
+            ) : null}
             {renderError(batchErrors.inspection_time_end)}
           </View>
         </View>
@@ -1084,25 +1344,20 @@ export default function AddLivestockForm() {
         {renderError(batchErrors.animal_destination)}
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
-            <Text style={styles.label}>Vehicle used</Text>
-            <View
-              style={getFieldShellStyle(
-                "vehicle_used",
-                batchErrors.vehicle_used,
-                "picker"
-              )}
-            >
-              <Picker
-                selectedValue={batchData.vehicle_used}
-                enabled={!submitted}
-                onValueChange={(value) => updateBatchData("vehicle_used", value)}
-              >
-                <Picker.Item label="Select Vehicle" value="" />
-                <Picker.Item label="Jeep" value="Jeep" />
-                <Picker.Item label="Hauler" value="Hauler" />
-              </Picker>
-            </View>
-            {renderError(batchErrors.vehicle_used)}
+            {renderSelectField({
+              label: "Vehicle used",
+              fieldKey: "vehicle_used",
+              value: batchData.vehicle_used,
+              placeholder: "Select Vehicle",
+              options: [
+                { label: "No vehicle selected", value: "" },
+                ...VEHICLE_OPTIONS,
+              ],
+              onSelect: (value) => updateBatchData("vehicle_used", value),
+              errorMessage: batchErrors.vehicle_used,
+              helperText: "Set the transport type for this batch",
+              icon: "truck-outline",
+            })}
           </View>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Paid number</Text>
@@ -1134,26 +1389,20 @@ export default function AddLivestockForm() {
         {renderError(batchErrors.animal_draft)}
         <View style={[styles.row, isTablet && styles.rowWide]}>
           <View style={styles.flexItem}>
-            <Text style={styles.label}>Species</Text>
-            <View
-              style={getFieldShellStyle(
-                "animal_species",
-                animalErrors.animal_species,
-                "picker"
-              )}
-            >
-              <Picker
-                selectedValue={animalDraft.animal_species}
-                enabled={!submitted}
-                onValueChange={(value) => updateAnimalDraft("animal_species", value)}
-              >
-                <Picker.Item label="Select Species" value="" />
-                <Picker.Item label="Hog" value="Hog" />
-                <Picker.Item label="Bovine" value="Bovine" />
-                <Picker.Item label="Cattle" value="Cattle" />
-              </Picker>
-            </View>
-            {renderError(animalErrors.animal_species)}
+            {renderSelectField({
+              label: "Species",
+              fieldKey: "animal_species",
+              value: animalDraft.animal_species,
+              placeholder: "Select Species",
+              options: [
+                { label: "No species selected", value: "" },
+                ...SPECIES_OPTIONS,
+              ],
+              onSelect: (value) => updateAnimalDraft("animal_species", value),
+              errorMessage: animalErrors.animal_species,
+              helperText: "Pick the animal type before saving this record",
+              icon: getAnimalSpeciesIcon(animalDraft.animal_species),
+            })}
           </View>
           <View style={styles.flexItem}>
             <Text style={styles.label}>Unique identifier</Text>
@@ -1386,26 +1635,116 @@ export default function AddLivestockForm() {
         ) : null}
       </View>
 
-      <DateTimePickerModal
-        isVisible={timePickerVisible}
-        mode="time"
-        onConfirm={(date) => {
-          const timeString = date.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+      <Modal
+        visible={Boolean(selectSheet)}
+        transparent
+        animationType="fade"
+        onRequestClose={closeSelectSheet}
+      >
+        <View style={styles.selectSheetOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeSelectSheet} />
 
-          updateBatchData(timeKey, timeString);
-          setTimePickerVisible(false);
-          setTimeKey("");
-          setFocusedField("");
-        }}
-        onCancel={() => {
-          setTimePickerVisible(false);
-          setTimeKey("");
-          setFocusedField("");
-        }}
-      />
+          <View style={styles.selectSheetCard}>
+            <View style={styles.selectSheetHandle} />
+
+            <View style={styles.selectSheetHeader}>
+              <View style={styles.selectSheetHeadingWrap}>
+                <Text style={styles.selectSheetEyebrow}>Choose an option</Text>
+                <Text style={styles.selectSheetTitle}>
+                  {selectSheet?.label || "Select item"}
+                </Text>
+                <Text style={styles.selectSheetCopy}>
+                  {selectSheet?.helperText ||
+                    "Tap the option you want to apply to this form."}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.selectSheetClose}
+                onPress={closeSelectSheet}
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={20}
+                  color={agriPalette.fieldDeep}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.selectSheetOptions}
+            >
+              {(selectSheet?.options || []).map((option) => {
+                const isSelected = option.value === selectSheet?.value;
+
+                return (
+                  <TouchableOpacity
+                    key={`${selectSheet?.fieldKey}-${option.value || "empty"}`}
+                    activeOpacity={0.88}
+                    style={[
+                      styles.selectOptionCard,
+                      isSelected && styles.selectOptionCardActive,
+                    ]}
+                    onPress={() => handleSelectOption(option.value)}
+                  >
+                    <View style={styles.selectOptionLeading}>
+                      <View
+                        style={[
+                          styles.selectOptionIcon,
+                          isSelected && styles.selectOptionIconActive,
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={
+                            option.icon ||
+                            selectSheet?.icon ||
+                            "chevron-down-circle-outline"
+                          }
+                          size={18}
+                          color={
+                            isSelected ? agriPalette.white : agriPalette.fieldDeep
+                          }
+                        />
+                      </View>
+
+                      <View style={styles.selectOptionCopy}>
+                        <Text
+                          style={[
+                            styles.selectOptionTitle,
+                            !normalizeValue(option.value) &&
+                              styles.selectOptionPlaceholderTitle,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        <Text style={styles.selectOptionText}>
+                          {isSelected
+                            ? "Currently selected for this field"
+                            : "Tap to apply this option"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {isSelected ? (
+                      <View style={styles.selectOptionSelectedChip}>
+                        <Text style={styles.selectOptionSelectedChipText}>Live</Text>
+                      </View>
+                    ) : (
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={18}
+                        color={agriPalette.field}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </DashboardShell>
   );
 }
@@ -1509,7 +1848,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#BCC8AE",
     borderRadius: 18,
-    overflow: "hidden",
     backgroundColor: agriPalette.white,
     marginBottom: 12,
     justifyContent: "center",
@@ -1523,6 +1861,118 @@ const styles = StyleSheet.create({
     color: agriPalette.ink,
     fontSize: 15,
     fontWeight: "700",
+  },
+  selectTriggerContent: {
+    minHeight: 70,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  selectLeadingWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  selectIconShell: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EDF4E5",
+    borderWidth: 1,
+    borderColor: "#D6E2C7",
+  },
+  selectIconShellActive: {
+    backgroundColor: agriPalette.field,
+    borderColor: agriPalette.field,
+  },
+  selectTextWrap: {
+    flex: 1,
+  },
+  selectValueText: {
+    color: agriPalette.ink,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  selectHintText: {
+    marginTop: 4,
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  selectTrailingWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  selectStatusChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#E8F2E5",
+  },
+  selectStatusChipText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  timeButtonContent: {
+    minHeight: 70,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  timeButtonLeading: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  timeButtonIconShell: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EDF4E5",
+    borderWidth: 1,
+    borderColor: "#D6E2C7",
+  },
+  timeButtonIconShellActive: {
+    backgroundColor: agriPalette.field,
+    borderColor: agriPalette.field,
+  },
+  timeButtonTextWrap: {
+    flex: 1,
+  },
+  timeResetButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: -2,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "#FFF4EF",
+    borderWidth: 1,
+    borderColor: "#F1C8B9",
+  },
+  timeResetButtonText: {
+    color: agriPalette.redClay,
+    fontSize: 12,
+    fontWeight: "800",
   },
   placeholderText: {
     color: agriPalette.inkSoft,
@@ -1605,5 +2055,138 @@ const styles = StyleSheet.create({
     borderColor: agriPalette.border,
     backgroundColor: "#FCF7EB",
     padding: 12,
+  },
+  selectSheetOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 26, 18, 0.38)",
+  },
+  selectSheetCard: {
+    maxHeight: "78%",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    backgroundColor: agriPalette.surface,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  selectSheetHandle: {
+    alignSelf: "center",
+    width: 54,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "#D8DEC9",
+    marginBottom: 14,
+  },
+  selectSheetHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+  },
+  selectSheetHeadingWrap: {
+    flex: 1,
+  },
+  selectSheetEyebrow: {
+    color: agriPalette.field,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  selectSheetTitle: {
+    marginTop: 8,
+    color: agriPalette.ink,
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  selectSheetCopy: {
+    marginTop: 8,
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  selectSheetClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: agriPalette.cream,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  selectSheetOptions: {
+    gap: 10,
+    paddingBottom: 10,
+  },
+  selectOptionCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    backgroundColor: "#FCF9F1",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  selectOptionCardActive: {
+    borderColor: agriPalette.field,
+    backgroundColor: "#ECF5EA",
+  },
+  selectOptionLeading: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  selectOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  selectOptionIconActive: {
+    backgroundColor: agriPalette.field,
+    borderColor: agriPalette.field,
+  },
+  selectOptionCopy: {
+    flex: 1,
+  },
+  selectOptionTitle: {
+    color: agriPalette.ink,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  selectOptionPlaceholderTitle: {
+    color: agriPalette.inkSoft,
+  },
+  selectOptionText: {
+    marginTop: 4,
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  selectOptionSelectedChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: agriPalette.field,
+  },
+  selectOptionSelectedChipText: {
+    color: agriPalette.white,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
   },
 });

@@ -38,6 +38,61 @@ const SETTINGS_META = {
   },
 };
 
+const PROFILE_FIELDS = [
+  {
+    field: "firstName",
+    label: "First name",
+    icon: "account-outline",
+    autoCapitalize: "words",
+    helper: "Use the name connected to your account records.",
+  },
+  {
+    field: "lastName",
+    label: "Last name",
+    icon: "badge-account-outline",
+    autoCapitalize: "words",
+    helper: "This appears on account-linked documents and history.",
+  },
+  {
+    field: "address",
+    label: "Address",
+    icon: "map-marker-outline",
+    autoCapitalize: "words",
+    helper: "Keep your address updated for profile and permit records.",
+  },
+  {
+    field: "email",
+    label: "Email",
+    icon: "email-outline",
+    keyboardType: "email-address",
+    autoCapitalize: "none",
+    helper: "We use this for account communication and recovery.",
+  },
+  {
+    field: "contactNumber",
+    label: "Phone number",
+    icon: "phone-outline",
+    keyboardType: "phone-pad",
+    autoCapitalize: "none",
+    helper: "Use an active 11-digit mobile number.",
+  },
+  {
+    field: "username",
+    label: "Username",
+    icon: "at",
+    autoCapitalize: "none",
+    helper: "This is your sign-in name inside the app.",
+  },
+  {
+    field: "password",
+    label: "New password (optional)",
+    icon: "lock-outline",
+    secureTextEntry: true,
+    autoCapitalize: "none",
+    helper: "Leave this blank if you do not want to change your password.",
+  },
+];
+
 function buildEmptyProfile() {
   return {
     accountId: "",
@@ -60,9 +115,38 @@ function getProfileInitials(firstName, lastName) {
   return initials || "U";
 }
 
+function normalizeProfileState(nextProfile) {
+  return {
+    ...buildEmptyProfile(),
+    ...nextProfile,
+    password: "",
+  };
+}
+
+function hasProfileChanges(currentProfile, savedProfile) {
+  if ((currentProfile.password || "").trim()) {
+    return true;
+  }
+
+  return [
+    "firstName",
+    "lastName",
+    "address",
+    "email",
+    "contactNumber",
+    "username",
+    "profilePicture",
+  ].some(
+    (field) =>
+      String(currentProfile[field] || "").trim() !==
+      String(savedProfile[field] || "").trim()
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState(buildEmptyProfile());
+  const [savedProfile, setSavedProfile] = useState(buildEmptyProfile());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pickingImage, setPickingImage] = useState(false);
@@ -70,6 +154,15 @@ export default function SettingsScreen() {
   const [role, setRole] = useState("user");
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [editableFields, setEditableFields] = useState({});
+
+  const applyLoadedProfile = (nextProfile) => {
+    const normalizedProfile = normalizeProfileState(nextProfile);
+    setProfile(normalizedProfile);
+    setSavedProfile(normalizedProfile);
+    setProfilePictureChanged(false);
+    setEditableFields({});
+  };
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -110,7 +203,7 @@ export default function SettingsScreen() {
           profilePicture: parsedUser.profile_picture || "",
         };
 
-        setProfile(baseProfile);
+        applyLoadedProfile(baseProfile);
 
         if (baseProfile.accountId) {
           const response = await fetch(INFO_API, {
@@ -122,32 +215,35 @@ export default function SettingsScreen() {
           const data = rawText ? JSON.parse(rawText) : {};
 
           if (data.status === "success" && data.user) {
-            setProfile((current) => ({
-              ...current,
-              firstName: data.user.first_name ?? current.firstName,
-              lastName: data.user.last_name ?? current.lastName,
-              address: data.user.address ?? current.address,
-              email: data.user.email ?? current.email,
-              contactNumber: data.user.contact_number ?? current.contactNumber,
-              username: data.user.username ?? current.username,
+            const refreshedProfile = {
+              ...baseProfile,
+              firstName: data.user.first_name ?? baseProfile.firstName,
+              lastName: data.user.last_name ?? baseProfile.lastName,
+              address: data.user.address ?? baseProfile.address,
+              email: data.user.email ?? baseProfile.email,
+              contactNumber:
+                data.user.contact_number ?? baseProfile.contactNumber,
+              username: data.user.username ?? baseProfile.username,
               profilePicture:
                 data.user.profile_picture !== undefined
                   ? data.user.profile_picture || ""
-                  : current.profilePicture,
-            }));
+                  : baseProfile.profilePicture,
+            };
+
+            applyLoadedProfile(refreshedProfile);
 
             await AsyncStorage.setItem(
               "user",
               JSON.stringify({
                 ...parsedUser,
                 account_id: baseProfile.accountId,
-                first_name: data.user.first_name ?? baseProfile.firstName,
-                last_name: data.user.last_name ?? baseProfile.lastName,
-                address: data.user.address ?? baseProfile.address,
-                email: data.user.email ?? baseProfile.email,
+                first_name: refreshedProfile.firstName,
+                last_name: refreshedProfile.lastName,
+                address: refreshedProfile.address,
+                email: refreshedProfile.email,
                 contact_number:
-                  data.user.contact_number ?? baseProfile.contactNumber,
-                username: data.user.username ?? baseProfile.username,
+                  refreshedProfile.contactNumber,
+                username: refreshedProfile.username,
                 profile_picture:
                   data.user.profile_picture !== undefined
                     ? data.user.profile_picture || ""
@@ -168,13 +264,40 @@ export default function SettingsScreen() {
   }, []);
 
   const settingsMeta = SETTINGS_META[role] || SETTINGS_META.user;
+  const hasUnsavedChanges = hasProfileChanges(profile, savedProfile);
+  const hasActiveEditors = Object.values(editableFields).some(Boolean);
+  const isFieldEditable = (field) =>
+    !!editableFields[field] && !loading && !saving;
+  const isPhotoEditable = isFieldEditable("profilePicture");
 
   const updateField = (field, value) => {
     setProfile((current) => ({ ...current, [field]: value }));
   };
 
+  const toggleFieldEditing = (field) => {
+    if (loading || saving) {
+      return;
+    }
+
+    setEditableFields((current) => {
+      const nextIsEditable = !current[field];
+
+      if (!nextIsEditable && field === "password") {
+        setProfile((currentProfile) => ({
+          ...currentProfile,
+          password: "",
+        }));
+      }
+
+      return {
+        ...current,
+        [field]: nextIsEditable,
+      };
+    });
+  };
+
   const handlePickProfilePicture = async () => {
-    if (loading || saving || pickingImage) {
+    if (!isPhotoEditable || pickingImage) {
       return;
     }
 
@@ -245,7 +368,11 @@ export default function SettingsScreen() {
   };
 
   const handleRemoveProfilePicture = () => {
-    if (!profile.profilePicture || loading || saving || pickingImage) {
+    if (
+      !profile.profilePicture ||
+      !isPhotoEditable ||
+      pickingImage
+    ) {
       return;
     }
 
@@ -260,6 +387,29 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  };
+
+  const handleDiscardChanges = () => {
+    if (saving || !hasUnsavedChanges) {
+      return;
+    }
+
+    Alert.alert(
+      "Discard changes",
+      "Do you want to remove your unsaved profile changes?",
+      [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => {
+            setProfile(normalizeProfileState(savedProfile));
+            setProfilePictureChanged(false);
+            setEditableFields({});
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = () => {
@@ -292,6 +442,10 @@ export default function SettingsScreen() {
   };
 
   const handleSave = async () => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
     if (!profile.accountId) {
       Alert.alert("Error", "Account ID is missing for this session.");
       return;
@@ -389,12 +543,17 @@ export default function SettingsScreen() {
         ["user", JSON.stringify(nextUser)],
       ]);
 
-      setProfile((current) => ({
-        ...current,
+      applyLoadedProfile({
+        ...profile,
+        firstName: payload.first_name,
+        lastName: payload.last_name,
+        address: payload.address,
+        email: payload.email,
+        contactNumber: payload.contact_number,
+        username: payload.username,
         password: "",
         profilePicture: savedProfilePicture,
-      }));
-      setProfilePictureChanged(false);
+      });
       Alert.alert("Success", "Your profile has been updated.");
     } catch (error) {
       console.error(error);
@@ -408,11 +567,13 @@ export default function SettingsScreen() {
     <DashboardShell
       eyebrow={settingsMeta.eyebrow}
       title="Profile settings"
-      subtitle={`Update the ${settingsMeta.roleLabel} details connected to your account. Password is optional and only changes if you fill it in.`}
+      subtitle={`Review the ${settingsMeta.roleLabel} details connected to your account. Tap Edit on any field you want to update, then save once everything looks right.`}
       summary={
         loading
           ? "Loading your account details..."
-          : `Editing the ${settingsMeta.roleLabel} profile for ${profile.firstName || "your account"}.`
+          : hasActiveEditors
+            ? `Some profile fields are unlocked for ${profile.firstName || "your account"}. Save your changes when you're done.`
+            : `Viewing the ${settingsMeta.roleLabel} profile for ${profile.firstName || "your account"}. Tap Edit on any field to unlock it.`
       }
     >
       <LogoutConfirmModal
@@ -448,7 +609,36 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.profileHeroCopy}>
-            <Text style={styles.profilePhotoLabel}>Profile picture</Text>
+            <View style={styles.fieldHeaderRow}>
+              <Text style={styles.profilePhotoLabel}>Profile picture</Text>
+              <TouchableOpacity
+                style={[
+                  styles.fieldEditButton,
+                  isPhotoEditable
+                    ? styles.fieldEditButtonActive
+                    : styles.fieldEditButtonLocked,
+                ]}
+                onPress={() => toggleFieldEditing("profilePicture")}
+                disabled={loading || saving}
+                activeOpacity={0.88}
+              >
+                <MaterialCommunityIcons
+                  name={isPhotoEditable ? "check-circle-outline" : "square-edit-outline"}
+                  size={15}
+                  color={isPhotoEditable ? agriPalette.fieldDeep : agriPalette.inkSoft}
+                />
+                <Text
+                  style={[
+                    styles.fieldEditButtonText,
+                    isPhotoEditable
+                      ? styles.fieldEditButtonTextActive
+                      : styles.fieldEditButtonTextLocked,
+                  ]}
+                >
+                  {isPhotoEditable ? "Done" : "Edit"}
+                </Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.profilePhotoTitle}>
               {profile.firstName || profile.lastName
                 ? `${profile.firstName} ${profile.lastName}`.trim()
@@ -463,9 +653,12 @@ export default function SettingsScreen() {
 
         <View style={styles.profileActionRow}>
           <TouchableOpacity
-            style={styles.photoAction}
+            style={[
+              styles.photoAction,
+              !isPhotoEditable && styles.photoActionDisabled,
+            ]}
             onPress={handlePickProfilePicture}
-            disabled={loading || saving || pickingImage}
+            disabled={!isPhotoEditable || pickingImage}
             activeOpacity={0.86}
           >
             <MaterialCommunityIcons
@@ -479,7 +672,12 @@ export default function SettingsScreen() {
               size={18}
               color={agriPalette.fieldDeep}
             />
-            <Text style={styles.photoActionText}>
+            <Text
+              style={[
+                styles.photoActionText,
+                !isPhotoEditable && styles.photoActionMutedText,
+              ]}
+            >
               {pickingImage
                 ? "Preparing photo..."
                 : profile.profilePicture
@@ -492,10 +690,13 @@ export default function SettingsScreen() {
             style={[
               styles.photoAction,
               styles.photoActionSecondary,
-              !profile.profilePicture && styles.photoActionDisabled,
+              (!profile.profilePicture || !isPhotoEditable) &&
+                styles.photoActionDisabled,
             ]}
             onPress={handleRemoveProfilePicture}
-            disabled={!profile.profilePicture || loading || saving || pickingImage}
+            disabled={
+              !profile.profilePicture || !isPhotoEditable || pickingImage
+            }
             activeOpacity={0.86}
           >
             <MaterialCommunityIcons
@@ -517,79 +718,162 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.formStack}>
-          <TextInput
-            label="First name"
-            mode="outlined"
-            value={profile.firstName}
-            onChangeText={(value) => updateField("firstName", value)}
-            style={styles.input}
-            disabled={loading || saving}
-          />
-          <TextInput
-            label="Last name"
-            mode="outlined"
-            value={profile.lastName}
-            onChangeText={(value) => updateField("lastName", value)}
-            style={styles.input}
-            disabled={loading || saving}
-          />
-          <TextInput
-            label="Address"
-            mode="outlined"
-            value={profile.address}
-            onChangeText={(value) => updateField("address", value)}
-            style={styles.input}
-            disabled={loading || saving}
-          />
-          <TextInput
-            label="Email"
-            mode="outlined"
-            value={profile.email}
-            keyboardType="email-address"
-            onChangeText={(value) => updateField("email", value)}
-            style={styles.input}
-            disabled={loading || saving}
-          />
-          <TextInput
-            label="Phone number"
-            mode="outlined"
-            value={profile.contactNumber}
-            keyboardType="phone-pad"
-            onChangeText={(value) =>
-              updateField("contactNumber", value.replace(/[^0-9]/g, "").slice(0, 11))
-            }
-            style={styles.input}
-            disabled={loading || saving}
-          />
-          <TextInput
-            label="Username"
-            mode="outlined"
-            value={profile.username}
-            onChangeText={(value) => updateField("username", value)}
-            style={styles.input}
-            disabled={loading || saving}
-          />
-          <TextInput
-            label="New password (optional)"
-            mode="outlined"
-            secureTextEntry
-            value={profile.password}
-            onChangeText={(value) => updateField("password", value)}
-            style={styles.input}
-            disabled={loading || saving}
-          />
+          {PROFILE_FIELDS.map((fieldConfig) => {
+            const isPasswordField = fieldConfig.field === "password";
+            const fieldEditable = isFieldEditable(fieldConfig.field);
+
+            return (
+              <View
+                key={fieldConfig.field}
+                style={[
+                  styles.inputCard,
+                  fieldEditable
+                    ? styles.inputCardEditable
+                    : styles.inputCardLocked,
+                ]}
+              >
+                <View style={styles.inputCardHeader}>
+                  <View style={styles.inputCardTitleRow}>
+                    <View
+                      style={[
+                        styles.inputCardIcon,
+                        fieldEditable
+                          ? styles.inputCardIconEditable
+                          : styles.inputCardIconLocked,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={fieldConfig.icon}
+                        size={18}
+                        color={
+                          fieldEditable
+                            ? agriPalette.fieldDeep
+                            : agriPalette.inkSoft
+                        }
+                      />
+                    </View>
+                    <View style={styles.inputCardCopy}>
+                      <Text style={styles.inputCardLabel}>{fieldConfig.label}</Text>
+                      <Text style={styles.inputCardHint}>
+                        {fieldEditable
+                          ? fieldConfig.helper
+                          : "Tap Edit profile to unlock this field."}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.fieldEditButton,
+                      fieldEditable
+                        ? styles.fieldEditButtonActive
+                        : styles.fieldEditButtonLocked,
+                    ]}
+                    onPress={() => toggleFieldEditing(fieldConfig.field)}
+                    disabled={loading || saving}
+                    activeOpacity={0.88}
+                  >
+                    <MaterialCommunityIcons
+                      name={
+                        fieldEditable
+                          ? "check-circle-outline"
+                          : "square-edit-outline"
+                      }
+                      size={15}
+                      color={
+                        fieldEditable
+                          ? agriPalette.fieldDeep
+                          : agriPalette.inkSoft
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.fieldEditButtonText,
+                        fieldEditable
+                          ? styles.fieldEditButtonTextActive
+                          : styles.fieldEditButtonTextLocked,
+                      ]}
+                    >
+                      {fieldEditable ? "Done" : "Edit"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TextInput
+                  label={fieldConfig.label}
+                  mode="outlined"
+                  value={profile[fieldConfig.field]}
+                  onChangeText={(value) =>
+                    updateField(
+                      fieldConfig.field,
+                      fieldConfig.field === "contactNumber"
+                        ? value.replace(/[^0-9]/g, "").slice(0, 11)
+                        : value
+                    )
+                  }
+                  style={[
+                    styles.input,
+                    fieldEditable ? styles.inputEditable : styles.inputLocked,
+                  ]}
+                  contentStyle={styles.inputContent}
+                  outlineStyle={[
+                    styles.inputOutline,
+                    fieldEditable
+                      ? styles.inputOutlineEditable
+                      : styles.inputOutlineLocked,
+                  ]}
+                  theme={{
+                    colors: {
+                      primary: agriPalette.field,
+                      outline: fieldEditable
+                        ? agriPalette.field
+                        : "#D9D7CB",
+                      onSurfaceVariant: agriPalette.inkSoft,
+                      background: fieldEditable
+                        ? agriPalette.white
+                        : "#F6F1E7",
+                    },
+                  }}
+                  editable={fieldEditable}
+                  keyboardType={fieldConfig.keyboardType}
+                  autoCapitalize={fieldConfig.autoCapitalize}
+                  secureTextEntry={fieldConfig.secureTextEntry}
+                  placeholder={
+                    isPasswordField && !fieldEditable
+                      ? "Tap Edit profile to change password"
+                      : undefined
+                  }
+                  textColor={agriPalette.ink}
+                />
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.actionStack}>
           <AgriButton
-            title="Save settings"
-            subtitle={`Update your ${settingsMeta.roleLabel} profile`}
+            title={hasUnsavedChanges ? "Save settings" : "No changes yet"}
+            subtitle={
+              hasUnsavedChanges
+                ? `Update your ${settingsMeta.roleLabel} profile`
+                : "Tap Edit on a field, then make your changes"
+            }
             icon="content-save-outline"
             variant="primary"
             loading={saving}
-            disabled={loading || saving}
+            disabled={loading || saving || !hasUnsavedChanges}
             onPress={handleSave}
           />
+          {hasUnsavedChanges ? (
+            <AgriButton
+              title="Discard changes"
+              subtitle="Reset all unsaved field updates"
+              icon="restore"
+              variant="muted"
+              lightText={false}
+              onPress={handleDiscardChanges}
+            />
+          ) : null}
           <AgriButton
             title="Back to dashboard"
             subtitle={`Return to your ${settingsMeta.dashboardTitle}`}
@@ -685,12 +969,47 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 16,
   },
+  fieldHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
   profilePhotoLabel: {
     color: agriPalette.field,
     fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 1.1,
+  },
+  fieldEditButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  fieldEditButtonLocked: {
+    backgroundColor: "#FFF8ED",
+    borderColor: "#E5D7BB",
+  },
+  fieldEditButtonActive: {
+    backgroundColor: "#E3F1E0",
+    borderColor: "#BED6BB",
+  },
+  fieldEditButtonText: {
+    marginLeft: 6,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  fieldEditButtonTextLocked: {
+    color: agriPalette.inkSoft,
+  },
+  fieldEditButtonTextActive: {
+    color: agriPalette.fieldDeep,
   },
   profilePhotoTitle: {
     marginTop: 6,
@@ -744,8 +1063,82 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 18,
   },
+  inputCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  inputCardLocked: {
+    backgroundColor: "#FAF6EE",
+    borderColor: "#E6DCC8",
+  },
+  inputCardEditable: {
+    backgroundColor: "#F7FCF5",
+    borderColor: "#D0E3D1",
+  },
+  inputCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  inputCardTitleRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingRight: 10,
+  },
+  inputCardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  inputCardIconLocked: {
+    backgroundColor: "#F0E6D4",
+  },
+  inputCardIconEditable: {
+    backgroundColor: "#E1F1DE",
+  },
+  inputCardCopy: {
+    flex: 1,
+  },
+  inputCardLabel: {
+    color: agriPalette.ink,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  inputCardHint: {
+    marginTop: 4,
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   input: {
-    backgroundColor: agriPalette.surface,
+    backgroundColor: "transparent",
+  },
+  inputLocked: {
+    backgroundColor: "#F6F1E7",
+  },
+  inputEditable: {
+    backgroundColor: agriPalette.white,
+  },
+  inputContent: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  inputOutline: {
+    borderRadius: 18,
+  },
+  inputOutlineLocked: {
+    borderWidth: 1.2,
+  },
+  inputOutlineEditable: {
+    borderWidth: 1.5,
   },
   actionStack: {
     gap: 12,

@@ -322,7 +322,43 @@ export default function AntemortemScanQRcode() {
           }}
         >
           <View style={styles.scanOverlay}>
-            <Text style={styles.scanHint}>Point camera at QR code</Text>
+            <View style={styles.scanShade} />
+            <View style={styles.scanCenterRow}>
+              <View style={styles.scanSideShade} />
+              <View style={styles.scanFrame}>
+                <View
+                  style={[styles.scanCorner, styles.scanCornerTopLeft]}
+                />
+                <View
+                  style={[styles.scanCorner, styles.scanCornerTopRight]}
+                />
+                <View
+                  style={[styles.scanCorner, styles.scanCornerBottomLeft]}
+                />
+                <View
+                  style={[styles.scanCorner, styles.scanCornerBottomRight]}
+                />
+                <View style={styles.scanFrameBadge}>
+                  <MaterialCommunityIcons
+                    name="qrcode-scan"
+                    size={34}
+                    color="#F7F2D8"
+                  />
+                </View>
+              </View>
+              <View style={styles.scanSideShade} />
+            </View>
+            <View style={styles.scanBottomShade}>
+              <View style={styles.scanHintCard}>
+                <Text style={styles.scanHintEyebrow}>QR Verification</Text>
+                <Text style={styles.scanHint}>
+                  Place the permit QR inside the box
+                </Text>
+                <Text style={styles.scanSubhint}>
+                  Hold your phone steady for automatic scanning
+                </Text>
+              </View>
+            </View>
           </View>
         </CameraView>
       )}
@@ -477,8 +513,114 @@ export default function AntemortemScanQRcode() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#E8F5E9" },
-  scanOverlay: { position: "absolute", bottom: 80, alignSelf: "center" },
-  scanHint: { color: "#2E7D32", fontSize: 16, fontWeight: "700" },
+  scanOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  scanShade: {
+    flex: 1,
+    backgroundColor: "rgba(5, 25, 12, 0.56)",
+  },
+  scanCenterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  scanSideShade: {
+    flex: 1,
+    height: 270,
+    backgroundColor: "rgba(5, 25, 12, 0.56)",
+  },
+  scanFrame: {
+    width: 270,
+    height: 270,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.25)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  scanCorner: {
+    position: "absolute",
+    width: 42,
+    height: 42,
+    borderColor: "#F2D56B",
+  },
+  scanCornerTopLeft: {
+    top: 16,
+    left: 16,
+    borderTopWidth: 5,
+    borderLeftWidth: 5,
+    borderTopLeftRadius: 16,
+  },
+  scanCornerTopRight: {
+    top: 16,
+    right: 16,
+    borderTopWidth: 5,
+    borderRightWidth: 5,
+    borderTopRightRadius: 16,
+  },
+  scanCornerBottomLeft: {
+    bottom: 16,
+    left: 16,
+    borderBottomWidth: 5,
+    borderLeftWidth: 5,
+    borderBottomLeftRadius: 16,
+  },
+  scanCornerBottomRight: {
+    bottom: 16,
+    right: 16,
+    borderBottomWidth: 5,
+    borderRightWidth: 5,
+    borderBottomRightRadius: 16,
+  },
+  scanFrameBadge: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "rgba(14, 43, 24, 0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scanBottomShade: {
+    flex: 1,
+    backgroundColor: "rgba(5, 25, 12, 0.56)",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+  },
+  scanHintCard: {
+    width: "100%",
+    borderRadius: 24,
+    backgroundColor: "rgba(9, 34, 19, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  scanHintEyebrow: {
+    color: "#CDE6CE",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+  },
+  scanHint: {
+    marginTop: 8,
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  scanSubhint: {
+    marginTop: 6,
+    color: "#D5E6D7",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   infoText: { marginTop: 10, fontSize: 16, color: "#24412D" },
 

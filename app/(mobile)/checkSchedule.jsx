@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -158,6 +159,13 @@ function getDateBadge(dateValue) {
   };
 }
 
+function toScheduleDateKey(dateValue) {
+  const year = dateValue.getFullYear();
+  const month = String(dateValue.getMonth() + 1).padStart(2, "0");
+  const day = String(dateValue.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function isUpcomingStatus(status) {
   return ["Pending", "Accepted", "Ongoing"].includes(status);
 }
@@ -219,6 +227,8 @@ export default function ScheduleScreen() {
   const [lastName, setLastName] = useState("");
   const [accountId, setAccountId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const highlightedScheduleId =
     parseInt(getRouteParamValue(params?.schedule_id), 10) || 0;
   const highlightedFormId =
@@ -306,7 +316,17 @@ export default function ScheduleScreen() {
     if (matchedSchedule?.status && statusFilter !== matchedSchedule.status) {
       setStatusFilter(matchedSchedule.status);
     }
-  }, [highlightedFormId, highlightedScheduleId, schedules, statusFilter]);
+
+    if (matchedSchedule?.date && !selectedDate) {
+      setSelectedDate(matchedSchedule.date);
+    }
+  }, [
+    highlightedFormId,
+    highlightedScheduleId,
+    schedules,
+    selectedDate,
+    statusFilter,
+  ]);
 
   const fetchSchedules = async () => {
     if (!accountId) {
@@ -388,10 +408,21 @@ export default function ScheduleScreen() {
   const upcomingSchedules = schedules.filter((item) => isUpcomingStatus(item.status)).length;
   const doneSchedules = schedules.filter((item) => item.status === "Done").length;
   const cancelledSchedules = schedules.filter((item) => item.status === "Cancelled").length;
-  const filteredSchedules =
+  const scheduleDates = Array.from(
+    new Set(
+      schedules
+        .map((item) => String(item.date || "").trim())
+        .filter(Boolean)
+    )
+  ).sort((left, right) => left.localeCompare(right));
+  const quickDateOptions = scheduleDates.slice(0, 6);
+  const statusFilteredSchedules =
     statusFilter === "All"
       ? schedules
       : schedules.filter((item) => item.status === statusFilter);
+  const filteredSchedules = selectedDate
+    ? statusFilteredSchedules.filter((item) => item.date === selectedDate)
+    : statusFilteredSchedules;
   const featuredSchedule =
     filteredSchedules.find((item) => isUpcomingStatus(item.status)) ||
     filteredSchedules[0] ||
@@ -453,6 +484,113 @@ export default function ScheduleScreen() {
                   </Pressable>
                 );
               })}
+            </View>
+
+            <View style={styles.dateFilterPanel}>
+              <View style={styles.dateFilterHeader}>
+                <View style={styles.dateFilterCopy}>
+                  <Text style={styles.dateFilterEyebrow}>Calendar filter</Text>
+                  <Text style={styles.dateFilterTitle}>
+                    {selectedDate
+                      ? formatScheduleDate(selectedDate)
+                      : "All scheduled dates"}
+                  </Text>
+                  <Text style={styles.dateFilterHint}>
+                    {selectedDate
+                      ? `${filteredSchedules.length} matching appointment${
+                          filteredSchedules.length === 1 ? "" : "s"
+                        } on this day.`
+                      : scheduleDates.length
+                      ? `Browse appointments across ${scheduleDates.length} scheduled day${
+                          scheduleDates.length === 1 ? "" : "s"
+                        }.`
+                      : "Pick a date once schedules are available."}
+                  </Text>
+                </View>
+
+                <View style={styles.dateFilterActions}>
+                  <Pressable
+                    style={styles.dateActionButton}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <MaterialCommunityIcons
+                      name="calendar-month-outline"
+                      size={16}
+                      color={agriPalette.fieldDeep}
+                    />
+                    <Text style={styles.dateActionText}>Pick date</Text>
+                  </Pressable>
+
+                  {selectedDate ? (
+                    <Pressable
+                      style={[
+                        styles.dateActionButton,
+                        styles.dateActionButtonMuted,
+                      ]}
+                      onPress={() => setSelectedDate("")}
+                    >
+                      <MaterialCommunityIcons
+                        name="close-circle-outline"
+                        size={16}
+                        color={agriPalette.inkSoft}
+                      />
+                      <Text
+                        style={[
+                          styles.dateActionText,
+                          styles.dateActionTextMuted,
+                        ]}
+                      >
+                        Clear
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+
+              {quickDateOptions.length ? (
+                <View style={styles.dateChipRow}>
+                  <Pressable
+                    style={[
+                      styles.dateQuickChip,
+                      !selectedDate && styles.dateQuickChipActive,
+                    ]}
+                    onPress={() => setSelectedDate("")}
+                  >
+                    <Text
+                      style={[
+                        styles.dateQuickChipText,
+                        !selectedDate && styles.dateQuickChipTextActive,
+                      ]}
+                    >
+                      All dates
+                    </Text>
+                  </Pressable>
+
+                  {quickDateOptions.map((dateValue) => {
+                    const active = selectedDate === dateValue;
+
+                    return (
+                      <Pressable
+                        key={dateValue}
+                        style={[
+                          styles.dateQuickChip,
+                          active && styles.dateQuickChipActive,
+                        ]}
+                        onPress={() => setSelectedDate(dateValue)}
+                      >
+                        <Text
+                          style={[
+                            styles.dateQuickChipText,
+                            active && styles.dateQuickChipTextActive,
+                          ]}
+                        >
+                          {formatScheduleDate(dateValue)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.actionRow}>
@@ -631,6 +769,21 @@ export default function ScheduleScreen() {
           </View>
         )}
       </View>
+
+      {showDatePicker ? (
+        <DateTimePicker
+          value={selectedDate ? new Date(`${selectedDate}T00:00:00`) : new Date()}
+          mode="date"
+          display="default"
+          onChange={(_event, pickedDate) => {
+            setShowDatePicker(false);
+
+            if (pickedDate) {
+              setSelectedDate(toScheduleDateKey(pickedDate));
+            }
+          }}
+        />
+      ) : null}
     </DashboardShell>
   );
 }
@@ -677,6 +830,92 @@ const styles = StyleSheet.create({
   filterChipTextActive: { color: agriPalette.white },
   filterCount: { color: agriPalette.fieldDeep, fontSize: 12, fontWeight: "900" },
   filterCountActive: { color: agriPalette.white },
+  dateFilterPanel: {
+    marginTop: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    backgroundColor: "#F7F3E8",
+    padding: 16,
+  },
+  dateFilterHeader: {
+    gap: 14,
+  },
+  dateFilterCopy: {
+    flex: 1,
+  },
+  dateFilterEyebrow: {
+    color: agriPalette.field,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  dateFilterTitle: {
+    marginTop: 8,
+    color: agriPalette.ink,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  dateFilterHint: {
+    marginTop: 6,
+    color: agriPalette.inkSoft,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  dateFilterActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  dateActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: agriPalette.white,
+    borderWidth: 1,
+    borderColor: "#D9DDCE",
+  },
+  dateActionButtonMuted: {
+    backgroundColor: "#F0ECE2",
+  },
+  dateActionText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  dateActionTextMuted: {
+    color: agriPalette.inkSoft,
+  },
+  dateChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 14,
+  },
+  dateQuickChip: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#EEE7D8",
+    borderWidth: 1,
+    borderColor: "#E1D8C4",
+  },
+  dateQuickChipActive: {
+    backgroundColor: agriPalette.field,
+    borderColor: agriPalette.field,
+  },
+  dateQuickChipText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  dateQuickChipTextActive: {
+    color: agriPalette.white,
+  },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 18 },
   actionButton: { flexBasis: "48%", flexGrow: 1, minWidth: 220 },
   featureCard: {

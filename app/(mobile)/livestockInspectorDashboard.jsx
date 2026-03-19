@@ -176,6 +176,7 @@ const InspectorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [accountId, setAccountId] = useState(null);
   const [renewalCount, setRenewalCount] = useState(0);
+  const [firstName, setFirstName] = useState("");
 
   useEffect(() => {
     const loadUser = async () => {
@@ -185,6 +186,7 @@ const InspectorDashboard = () => {
         if (userData) {
           const parsed = JSON.parse(userData);
           setAccountId(parsed.account_id);
+          setFirstName(parsed.first_name || "");
         } else {
           setLoading(false);
         }
@@ -287,15 +289,129 @@ const InspectorDashboard = () => {
   return (
     <DashboardShell
       eyebrow="Inspector operations"
-      profilePlacement="panel"
-      title="Inspection dashboard"
-      subtitle="Focus on forms created under your own inspector account and monitor which of those permits still have active QR validity."
+      profilePlacement="inlineTitle"
+      title={
+        firstName
+          ? `Welcome back, Inspector ${firstName}`
+          : "Welcome back, Inspector"
+      }
+      subtitle="Create forms, review renewals, and monitor the permits filed under your inspector account without losing sight of your active workload."
       summary={
         loading
           ? "Syncing your inspection records..."
           : `${dashboard.total} forms created by you in ${selectedFilterLabel.toLowerCase()}, with ${dashboard.validQr} active QR permits and ${renewalCount} pending renewal request${renewalCount === 1 ? "" : "s"}.`
       }
     >
+      <View style={styles.workbenchCard}>
+        <View style={styles.workbenchHeader}>
+          <View style={styles.workbenchHeaderCopy}>
+            <Text style={styles.cardEyebrow}>Inspector workbench</Text>
+            <Text style={styles.cardTitle}>Open the next task faster</Text>
+            <Text style={styles.cardCopy}>
+              Your most-used actions now stay near the top so you can create a
+              form or open the renewal queue without scrolling through the full
+              dashboard first.
+            </Text>
+          </View>
+
+          <View style={styles.workbenchSummaryChip}>
+            <MaterialCommunityIcons
+              name="calendar-refresh-outline"
+              size={16}
+              color={agriPalette.fieldDeep}
+            />
+            <Text style={styles.workbenchSummaryChipText}>
+              {renewalCount} pending
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.workbenchGrid}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryWorkbenchTile,
+              pressed && styles.workbenchTilePressed,
+            ]}
+            onPress={() => router.push("/createLivestockForm")}
+          >
+            <View style={styles.primaryWorkbenchIcon}>
+              <MaterialCommunityIcons
+                name="note-plus-outline"
+                size={24}
+                color={agriPalette.white}
+              />
+            </View>
+            <View style={styles.primaryWorkbenchCopy}>
+              <Text style={styles.primaryWorkbenchTitle}>Create form</Text>
+              <Text style={styles.primaryWorkbenchText}>
+                Start a livestock inspection record right away from the dashboard.
+              </Text>
+            </View>
+            <MaterialCommunityIcons
+              name="arrow-right"
+              size={22}
+              color={agriPalette.white}
+            />
+          </Pressable>
+
+          <View style={styles.secondaryWorkbenchGrid}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryWorkbenchTile,
+                pressed && styles.workbenchTilePressed,
+              ]}
+              onPress={() => router.push("/renewalRequests")}
+            >
+              <View style={styles.secondaryWorkbenchTop}>
+                <View style={styles.secondaryWorkbenchIcon}>
+                  <MaterialCommunityIcons
+                    name="calendar-refresh-outline"
+                    size={22}
+                    color={agriPalette.fieldDeep}
+                  />
+                </View>
+                <View style={styles.secondaryWorkbenchCountBadge}>
+                  <Text style={styles.secondaryWorkbenchCountText}>
+                    {renewalCount}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.secondaryWorkbenchTitle}>Renewals</Text>
+              <Text style={styles.secondaryWorkbenchText}>
+                Review owner renewal requests and reuse existing forms faster.
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryWorkbenchTile,
+                pressed && styles.workbenchTilePressed,
+              ]}
+              onPress={() => router.push("/viewForms")}
+            >
+              <View style={styles.secondaryWorkbenchTop}>
+                <View style={styles.secondaryWorkbenchIcon}>
+                  <MaterialCommunityIcons
+                    name="file-search-outline"
+                    size={22}
+                    color={agriPalette.fieldDeep}
+                  />
+                </View>
+                <MaterialCommunityIcons
+                  name="arrow-top-right"
+                  size={18}
+                  color={agriPalette.field}
+                />
+              </View>
+              <Text style={styles.secondaryWorkbenchTitle}>Submitted forms</Text>
+              <Text style={styles.secondaryWorkbenchText}>
+                Jump to your filed records without leaving the first screen.
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
       <View style={styles.statsGrid}>
         <StatCard
           label="Created forms"
@@ -522,32 +638,11 @@ const InspectorDashboard = () => {
         <Text style={styles.cardEyebrow}>Quick actions</Text>
         <Text style={styles.cardTitle}>Open your next workflow</Text>
         <Text style={styles.cardCopy}>
-          Jump back into submitted records, create another inspection form, or
-          end this session from the same inspector workspace.
+          The main inspector shortcuts are now pinned near the top. These extra
+          actions stay here for profile updates and session control.
         </Text>
 
         <View style={styles.actionStack}>
-          <AgriButton
-            title="View submitted forms"
-            subtitle="Check livestock records already filed"
-            icon="file-search-outline"
-            variant="primary"
-            onPress={() => router.push("/viewForms")}
-          />
-          <AgriButton
-            title="Create a new form"
-            subtitle="Start a fresh livestock inspection record"
-            icon="note-plus-outline"
-            variant="secondary"
-            onPress={() => router.push("/createLivestockForm")}
-          />
-          <AgriButton
-            title="Review renewal requests"
-            subtitle={`${renewalCount} pending request${renewalCount === 1 ? "" : "s"} waiting for reuse`}
-            icon="calendar-refresh-outline"
-            variant="earth"
-            onPress={() => router.push("/renewalRequests")}
-          />
           <AgriButton
             title="Settings"
             subtitle="Update your livestock inspector profile"
@@ -569,6 +664,146 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 14,
     marginBottom: 18,
+  },
+  workbenchCard: {
+    borderRadius: 30,
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    marginBottom: 18,
+    shadowColor: "#203126",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  workbenchHeader: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+  },
+  workbenchHeaderCopy: {
+    flex: 1,
+    minWidth: 220,
+  },
+  workbenchSummaryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: agriPalette.cream,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  workbenchSummaryChipText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  workbenchGrid: {
+    gap: 12,
+    marginTop: 18,
+  },
+  primaryWorkbenchTile: {
+    minHeight: 110,
+    borderRadius: 28,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    backgroundColor: agriPalette.field,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  workbenchTilePressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.99 }],
+  },
+  primaryWorkbenchIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  primaryWorkbenchCopy: {
+    flex: 1,
+  },
+  primaryWorkbenchTitle: {
+    color: agriPalette.white,
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  primaryWorkbenchText: {
+    marginTop: 6,
+    color: "rgba(255,255,255,0.84)",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  secondaryWorkbenchGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  secondaryWorkbenchTile: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minWidth: 160,
+    minHeight: 150,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: agriPalette.cream,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  secondaryWorkbenchTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  secondaryWorkbenchIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  secondaryWorkbenchCountBadge: {
+    minWidth: 34,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E4F1EB",
+  },
+  secondaryWorkbenchCountText: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  secondaryWorkbenchTitle: {
+    marginTop: 16,
+    color: agriPalette.ink,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  secondaryWorkbenchText: {
+    marginTop: 8,
+    color: agriPalette.inkSoft,
+    fontSize: 13,
+    lineHeight: 19,
   },
   surfaceCard: {
     borderRadius: 30,
