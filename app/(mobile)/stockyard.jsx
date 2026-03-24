@@ -1,10 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -206,6 +208,19 @@ function getRouteParamValue(value) {
   return value ?? "";
 }
 
+function buildRenewalSuccessNotice({ form, requestedDate, renewalRequestId }) {
+  return {
+    title: "Renewal booked",
+    message: "Your renewal request was saved and is waiting for review.",
+    requestedDate,
+    renewalRequestId,
+    formId: form?.form_id || 0,
+    ownerName: form?.owner_name || "",
+    species: form?.animal_species || "",
+    eartagNumber: form?.animal_unique_identifier || "",
+  };
+}
+
 export default function Stockyard() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -228,6 +243,7 @@ export default function Stockyard() {
   const [renewalPickerVisible, setRenewalPickerVisible] = useState(false);
   const [renewalTargetForm, setRenewalTargetForm] = useState(null);
   const [requestingRenewalId, setRequestingRenewalId] = useState(null);
+  const [renewalSuccessNotice, setRenewalSuccessNotice] = useState(null);
   const [expandedFormId, setExpandedFormId] = useState(null);
   const highlightedFormId =
     parseInt(getRouteParamValue(params?.form_id), 10) || 0;
@@ -451,11 +467,12 @@ export default function Stockyard() {
         return;
       }
 
-      Alert.alert(
-        "Renewal scheduled",
-        `Your renewal request was scheduled for ${formatDateLabel(
-          data.requested_date
-        )}.`
+      setRenewalSuccessNotice(
+        buildRenewalSuccessNotice({
+          form: renewalTargetForm,
+          requestedDate: data.requested_date,
+          renewalRequestId: data.renewal_request_id,
+        })
       );
 
       await fetchForms({
@@ -494,11 +511,11 @@ export default function Stockyard() {
           ? `${lastName}'s livestock permits`
           : "My stockyard"
       }
-      subtitle="Use the stockyard to review your submitted permits, check QR validity, and open the next booking or renewal step from one place."
+      subtitle="Check permits, booking, and renewal."
       summary={
         loading
-          ? "Refreshing your stockyard forms..."
-          : `${activeCount} active QR permits and ${expiredCount} expired records in your stockyard.`
+          ? "Loading permits..."
+          : `${activeCount} active, ${expiredCount} expired.`
       }
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -509,7 +526,7 @@ export default function Stockyard() {
           <StatCard
             label="All permits"
             value={forms.length}
-            caption="Every livestock form filed under your account."
+            caption="Forms in your account."
             icon="barn"
             accent="meadow"
             loading={loading}
@@ -517,7 +534,7 @@ export default function Stockyard() {
           <StatCard
             label="Active QR"
             value={activeCount}
-            caption="Permits currently ready for verification and scheduling."
+            caption="Ready to use."
             icon="qrcode-scan"
             accent="wheat"
             loading={loading}
@@ -525,7 +542,7 @@ export default function Stockyard() {
           <StatCard
             label="Expired"
             value={expiredCount}
-            caption="Forms that now need renewal before the next movement."
+            caption="Needs renewal."
             icon="calendar-remove-outline"
             accent="clay"
             loading={loading}
@@ -534,10 +551,9 @@ export default function Stockyard() {
 
         <View style={styles.surfaceCard}>
           <Text style={styles.cardEyebrow}>Search and filter</Text>
-          <Text style={styles.cardTitle}>Choose the permit you need to work on</Text>
+          <Text style={styles.cardTitle}>Find a permit</Text>
           <Text style={styles.cardCopy}>
-            Search by owner, species, ear tag, or form number, then narrow the
-            list to active or expired permits before opening the next action.
+            Search by owner, species, eartag, or form number.
           </Text>
 
           <View style={styles.searchWrap}>
@@ -584,8 +600,8 @@ export default function Stockyard() {
 
           <View style={styles.refreshButtonWrap}>
             <AgriButton
-              title="Refresh permits"
-              subtitle="Reload the newest permit records in your stockyard"
+              title="Refresh"
+              subtitle={null}
               icon="refresh"
               variant="sky"
               compact
@@ -597,11 +613,8 @@ export default function Stockyard() {
 
         <View style={styles.surfaceCard}>
           <Text style={styles.cardEyebrow}>Permit list</Text>
-          <Text style={styles.cardTitle}>Review the permits linked to your account</Text>
-          <Text style={styles.cardCopy}>
-            Open full details, inspect QR validity at a glance, and move
-            directly into scheduling or renewal from each eligible record.
-          </Text>
+          <Text style={styles.cardTitle}>Your permits</Text>
+          <Text style={styles.cardCopy}>Open details, book a visit, or request renewal.</Text>
 
           {!!loadError && !loading && (
             <View style={styles.errorPanel}>
@@ -641,25 +654,12 @@ export default function Stockyard() {
                   ? renewalPending
                     ? "Renewal requested"
                     : renewalCompleted
-                      ? "Renewal completed"
+                      ? "Renewed"
                       : renewalCancelled
-                        ? "Request renewal again"
+                        ? "Renew again"
                         : "Request renewal"
-                  : "Create schedule";
-                const renewalButtonSubtitle = expired
-                  ? renewalPending
-                    ? `Scheduled for ${formatDateLabel(
-                        item.renewal_requested_date
-                      )}`
-                    : renewalCompleted
-                      ? item.renewed_form_id
-                        ? `Updated under form #${item.renewed_form_id}`
-                        : "The inspector already completed this renewal."
-                      : renewalCancelled
-                        ? item.renewal_cancel_reason ||
-                          "The previous renewal schedule was cancelled."
-                        : "Choose the date when you want the inspector to renew it"
-                  : "Book an appointment for this livestock form";
+                  : "Book visit";
+                const renewalButtonSubtitle = null;
                 const renewalButtonIcon = expired
                   ? renewalPending
                     ? "calendar-clock-outline"
@@ -812,8 +812,8 @@ export default function Stockyard() {
 
                       <Text style={styles.expandHint}>
                         {isExpanded
-                          ? "Tap to collapse this permit"
-                          : "Tap to expand full permit details"}
+                          ? "Tap to hide details"
+                          : "Tap for details"}
                       </Text>
                     </Pressable>
 
@@ -834,28 +834,48 @@ export default function Stockyard() {
                             <View
                               style={[
                                 styles.infoGrid,
-                                isCompact && styles.infoGridCompact,
+                                useStackedCardLayout && styles.infoGridCompact,
                               ]}
                             >
-                              <View style={styles.infoBlock}>
+                              <View
+                                style={[
+                                  styles.infoBlock,
+                                  useStackedCardLayout && styles.infoBlockCompact,
+                                ]}
+                              >
                                 <Text style={styles.infoLabel}>Eartag</Text>
                                 <Text style={styles.infoValue}>
                                   {item.animal_unique_identifier || "Not provided"}
                                 </Text>
                               </View>
-                              <View style={styles.infoBlock}>
+                              <View
+                                style={[
+                                  styles.infoBlock,
+                                  useStackedCardLayout && styles.infoBlockCompact,
+                                ]}
+                              >
                                 <Text style={styles.infoLabel}>Inspection date</Text>
                                 <Text style={styles.infoValue}>
                                   {formatDateLabel(item.date)}
                                 </Text>
                               </View>
-                              <View style={styles.infoBlock}>
+                              <View
+                                style={[
+                                  styles.infoBlock,
+                                  useStackedCardLayout && styles.infoBlockCompact,
+                                ]}
+                              >
                                 <Text style={styles.infoLabel}>Origin</Text>
                                 <Text style={styles.infoValue}>
                                   {item.animal_origin || "Not provided"}
                                 </Text>
                               </View>
-                              <View style={styles.infoBlock}>
+                              <View
+                                style={[
+                                  styles.infoBlock,
+                                  useStackedCardLayout && styles.infoBlockCompact,
+                                ]}
+                              >
                                 <Text style={styles.infoLabel}>Destination</Text>
                                 <Text style={styles.infoValue}>
                                   {item.animal_destination || "Not provided"}
@@ -1000,7 +1020,7 @@ export default function Stockyard() {
                                     styles.qrCaptionStacked,
                                 ]}
                               >
-                                Present this code during on-site verification.
+                                Show this during verification.
                               </Text>
                             </View>
                           </View>
@@ -1016,8 +1036,8 @@ export default function Stockyard() {
                             style={useWideActionRow ? styles.actionCell : null}
                           >
                             <AgriButton
-                              title="View details"
-                              subtitle="Open the full livestock record"
+                              title="Details"
+                              subtitle={null}
                               icon="file-search-outline"
                               variant="primary"
                               compact
@@ -1061,10 +1081,7 @@ export default function Stockyard() {
                 color={agriPalette.field}
               />
               <Text style={styles.emptyTitle}>No permits match this view</Text>
-              <Text style={styles.emptyCopy}>
-                Try a different search term or switch the QR filter to see more
-                stockyard records.
-              </Text>
+              <Text style={styles.emptyCopy}>Try another search or filter.</Text>
             </View>
           )}
         </View>
@@ -1081,11 +1098,149 @@ export default function Stockyard() {
         value={new Date()}
         minimumDate={new Date()}
         title="Choose a renewal date"
-        description="Pick the day you want the agriculture office to process this expired permit renewal request."
+        description="Pick a day for this renewal."
         confirmLabel="Request renewal"
         onConfirm={submitRenewalRequest}
         onCancel={closeRenewalPicker}
       />
+
+      <Modal
+        transparent
+        visible={Boolean(renewalSuccessNotice)}
+        animationType="fade"
+        onRequestClose={() => setRenewalSuccessNotice(null)}
+      >
+        <View style={styles.successOverlay}>
+          <BlurView
+            intensity={34}
+            tint="dark"
+            experimentalBlurMethod="dimezisBlurView"
+            style={styles.successBlurBackdrop}
+          />
+          <View style={styles.successTint} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setRenewalSuccessNotice(null)}
+          />
+
+          <View style={styles.successBox}>
+            <View style={styles.successAccentBar} />
+
+            <View style={styles.successHeader}>
+              <View style={styles.successIconWrap}>
+                <MaterialCommunityIcons
+                  name="calendar-check-outline"
+                  size={28}
+                  color={agriPalette.fieldDeep}
+                />
+              </View>
+
+              <View style={styles.successHeaderCopy}>
+                <Text style={styles.successEyebrow}>Renewal request</Text>
+                <Text style={styles.successTitle}>
+                  {renewalSuccessNotice?.title || "Renewal booked"}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.successCopy}>
+              {renewalSuccessNotice?.message ||
+                "Your renewal request was saved."}
+            </Text>
+
+            <View style={styles.successStatusPill}>
+              <MaterialCommunityIcons
+                name="clock-outline"
+                size={16}
+                color="#8A6510"
+              />
+              <Text style={styles.successStatusText}>Pending</Text>
+            </View>
+
+            <View style={styles.successDetailsCard}>
+              <View style={styles.successDetailRow}>
+                <MaterialCommunityIcons
+                  name="calendar-range"
+                  size={16}
+                  color={agriPalette.fieldDeep}
+                />
+                <Text style={styles.successDetailText}>
+                  {formatDateLabel(renewalSuccessNotice?.requestedDate)}
+                </Text>
+              </View>
+
+              <View style={styles.successDetailRow}>
+                <MaterialCommunityIcons
+                  name="file-document-outline"
+                  size={16}
+                  color={agriPalette.fieldDeep}
+                />
+                <Text style={styles.successDetailText}>
+                  Form #{renewalSuccessNotice?.formId || "N/A"}
+                  {renewalSuccessNotice?.renewalRequestId
+                    ? ` | Request #${renewalSuccessNotice.renewalRequestId}`
+                    : ""}
+                </Text>
+              </View>
+
+              {(renewalSuccessNotice?.ownerName ||
+                renewalSuccessNotice?.eartagNumber) ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="account-outline"
+                    size={16}
+                    color={agriPalette.fieldDeep}
+                  />
+                  <Text style={styles.successDetailText}>
+                    {renewalSuccessNotice?.ownerName || "Owner not recorded"}
+                    {renewalSuccessNotice?.eartagNumber
+                      ? ` | ${renewalSuccessNotice.eartagNumber}`
+                      : ""}
+                  </Text>
+                </View>
+              ) : null}
+
+              {renewalSuccessNotice?.species ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="cow"
+                    size={16}
+                    color={agriPalette.fieldDeep}
+                  />
+                  <Text style={styles.successDetailText}>
+                    {renewalSuccessNotice.species}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.successActions}>
+              <AgriButton
+                title="View renewals"
+                icon="calendar-month-outline"
+                variant="primary"
+                compact
+                trailingIcon={false}
+                onPress={() => {
+                  setRenewalSuccessNotice(null);
+                  router.push({
+                    pathname: "/checkSchedule",
+                    params: { board: "renewal" },
+                  });
+                }}
+              />
+              <AgriButton
+                title="Stay here"
+                icon="arrow-left"
+                variant="secondary"
+                compact
+                trailingIcon={false}
+                onPress={() => setRenewalSuccessNotice(null)}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </DashboardShell>
   );
 }
@@ -1385,22 +1540,30 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "flex-start",
     gap: 12,
   },
   infoGridCompact: {
-    flexDirection: "column",
+    gap: 10,
   },
   infoBlock: {
     flexBasis: "48%",
     flexGrow: 1,
     minWidth: 0,
-    minHeight: 88,
+    alignSelf: "flex-start",
+    minHeight: 76,
     borderRadius: 18,
     backgroundColor: agriPalette.surface,
     borderWidth: 1,
     borderColor: agriPalette.border,
     paddingHorizontal: 12,
     paddingVertical: 12,
+    justifyContent: "flex-start",
+  },
+  infoBlockCompact: {
+    flexBasis: "48%",
+    minWidth: 128,
+    minHeight: 132,
     justifyContent: "space-between",
   },
   infoLabel: {
@@ -1625,6 +1788,116 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     textAlign: "center",
+  },
+  successOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  successBlurBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  successTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(12, 24, 16, 0.44)",
+  },
+  successBox: {
+    width: "100%",
+    maxWidth: 430,
+    borderRadius: 30,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    borderColor: "#B9D3C6",
+    overflow: "hidden",
+  },
+  successAccentBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    backgroundColor: agriPalette.fieldDeep,
+  },
+  successHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  successIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#DCECE2",
+  },
+  successHeaderCopy: {
+    flex: 1,
+  },
+  successEyebrow: {
+    color: agriPalette.fieldDeep,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  successTitle: {
+    marginTop: 6,
+    color: agriPalette.ink,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  successCopy: {
+    marginTop: 16,
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  successStatusPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "#FBF2D3",
+  },
+  successStatusText: {
+    color: "#8A6510",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  successDetailsCard: {
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#B9D3C6",
+    backgroundColor: "#EAF5EE",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  successDetailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  successDetailText: {
+    flex: 1,
+    color: agriPalette.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
+  successActions: {
+    gap: 10,
   },
   errorPanel: {
     flexDirection: "row",

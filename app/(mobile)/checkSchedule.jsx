@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -9,7 +8,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import AgriButton from "../../components/AgriButton";
@@ -29,13 +27,13 @@ const boardOptions = [
   {
     key: "inspection",
     label: "Inspection",
-    meta: "Visits and appointments",
+    meta: "Visits",
     icon: "clipboard-text-outline",
   },
   {
     key: "renewal",
     label: "Renewal",
-    meta: "Expired permit follow-up",
+    meta: "Permit follow-up",
     icon: "calendar-refresh-outline",
   },
 ];
@@ -269,8 +267,6 @@ async function requestRenewalRequests(ownerAccountId) {
 export default function ScheduleScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { width } = useWindowDimensions();
-  const isWide = width >= 920;
   const requestedBoardMode = String(getRouteParamValue(params?.board) || "")
     .trim()
     .toLowerCase();
@@ -627,10 +623,6 @@ export default function ScheduleScreen() {
   const filteredSchedules = selectedDate
     ? statusFilteredSchedules.filter((item) => item.date === selectedDate)
     : statusFilteredSchedules;
-  const featuredSchedule =
-    filteredSchedules.find((item) => isUpcomingStatus(item.status)) ||
-    filteredSchedules[0] ||
-    null;
   const activeLoading = boardMode === "inspection" ? loading : renewalLoading;
 
   return (
@@ -643,28 +635,23 @@ export default function ScheduleScreen() {
           ? `${lastName}'s schedule board`
           : "My schedules"
       }
-      subtitle="Switch between your inspection appointments and your permit renewal requests from one owner-friendly board."
+      subtitle="View inspections and renewals in one place."
       summary={
         activeLoading
-          ? `Refreshing your ${
-              boardMode === "inspection" ? "inspection board" : "renewal board"
-            }...`
+          ? "Loading board..."
           : boardMode === "inspection"
-          ? `${upcomingSchedules} active visits, ${doneSchedules} completed, and ${cancelledSchedules} cancelled.`
-          : `${renewalRequests.filter((item) => normalizeStatusLabel(item.status) === "Pending").length} pending renewals, ${
+          ? `${upcomingSchedules} active, ${doneSchedules} done, ${cancelledSchedules} cancelled.`
+          : `${renewalRequests.filter((item) => normalizeStatusLabel(item.status) === "Pending").length} pending, ${
               renewalRequests.filter((item) => normalizeStatusLabel(item.status) === "Completed").length
-            } completed, and ${
+            } completed, ${
               renewalRequests.filter((item) => normalizeStatusLabel(item.status) === "Cancelled").length
             } cancelled.`
       }
     >
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Board type</Text>
-        <Text style={styles.cardTitle}>Switch between inspections and renewals</Text>
-        <Text style={styles.cardCopy}>
-          Use one board for upcoming inspection visits and expired permit
-          renewals without leaving the owner schedule page.
-        </Text>
+        <Text style={styles.cardTitle}>Choose a board</Text>
+        <Text style={styles.cardCopy}>Switch between inspections and renewals.</Text>
 
         <View style={styles.boardSwitchRow}>
           {boardOptions.map((option) => {
@@ -726,14 +713,10 @@ export default function ScheduleScreen() {
       </View>
 
       <View style={styles.surfaceCard}>
-        <View style={[styles.boardRow, isWide && styles.boardRowWide]}>
-          <View style={styles.boardCopy}>
+        <View>
             <Text style={styles.cardEyebrow}>Schedule board</Text>
-            <Text style={styles.cardTitle}>Choose the schedule view you want to review</Text>
-            <Text style={styles.cardCopy}>
-              Use filters, date tools, and quick actions to focus on the exact
-              appointments you need to review or manage next.
-            </Text>
+            <Text style={styles.cardTitle}>Filter schedules</Text>
+            <Text style={styles.cardCopy}>Use status, date, and quick actions.</Text>
 
             <View style={styles.filterRow}>
               {statusOptions.map((option) => {
@@ -869,8 +852,8 @@ export default function ScheduleScreen() {
 
             <View style={styles.actionRow}>
               <AgriButton
-                title="Refresh schedules"
-                subtitle="Reload the newest schedule updates"
+                title="Refresh"
+                subtitle={null}
                 icon="refresh"
                 variant="secondary"
                 compact
@@ -879,8 +862,8 @@ export default function ScheduleScreen() {
                 style={styles.actionButton}
               />
               <AgriButton
-                title="Open stockyard"
-                subtitle="Go back to permits and booking-ready records"
+                title="Stockyard"
+                subtitle={null}
                 icon="barn"
                 variant="sky"
                 compact
@@ -888,42 +871,13 @@ export default function ScheduleScreen() {
                 style={styles.actionButton}
               />
             </View>
-          </View>
-
-          <LinearGradient
-            colors={featuredSchedule ? (statusStyles[featuredSchedule.status] || statusStyles.Pending).gradient : ["#EDF4E7", "#D6E4CA"]}
-            style={styles.featureCard}
-          >
-            <Text style={styles.featureEyebrow}>
-              {featuredSchedule ? "Queue focus" : "No appointment yet"}
-            </Text>
-            <Text style={styles.featureTitle}>
-              {featuredSchedule ? featuredSchedule.owner_name || "Owner pending" : "Book a schedule to unlock this panel"}
-            </Text>
-            <Text style={styles.featureMeta}>
-              {featuredSchedule
-                ? `${formatScheduleDate(featuredSchedule.date)} | ${formatTimeWindow(
-                    featuredSchedule.start_time,
-                    featuredSchedule.end_time
-                  )}`
-                : "Your next active visit will stay pinned here."}
-            </Text>
-            <Text style={styles.featureFoot}>
-              {featuredSchedule
-                ? featuredSchedule.location || "Location pending"
-                : "Use the stockyard to create a new appointment."}
-            </Text>
-          </LinearGradient>
         </View>
       </View>
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Appointments</Text>
-        <Text style={styles.cardTitle}>Review each visit with full context</Text>
-        <Text style={styles.cardCopy}>
-          Each appointment card keeps the date, time, route, and current stage
-          visible so you can decide the next step quickly.
-        </Text>
+        <Text style={styles.cardTitle}>Appointments</Text>
+        <Text style={styles.cardCopy}>See date, time, and status at a glance.</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={agriPalette.field} style={styles.loadingState} />
@@ -986,8 +940,8 @@ export default function ScheduleScreen() {
                       {item.status === "Cancelled" || item.status === "Done" ? (
                         <Text style={styles.noteText}>
                           {item.status === "Done"
-                            ? "Inspection completed. This visit now lives in your finished history."
-                            : "This appointment was cancelled and removed from your active queue."}
+                            ? "Inspection completed."
+                            : "Appointment cancelled."}
                         </Text>
                       ) : (
                         <View style={styles.progressRow}>
@@ -1019,7 +973,7 @@ export default function ScheduleScreen() {
                       {canCancel ? (
                         <AgriButton
                           title="Cancel schedule"
-                          subtitle="Cancel this visit and free the appointment slot"
+                          subtitle={null}
                           icon="close-circle-outline"
                           variant="danger"
                           compact
@@ -1038,9 +992,7 @@ export default function ScheduleScreen() {
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="calendar-blank-outline" size={34} color={agriPalette.field} />
             <Text style={styles.emptyTitle}>No schedules in this filter</Text>
-            <Text style={styles.emptyCopy}>
-              Try another status chip, refresh the board, or jump back to the stockyard to book a visit.
-            </Text>
+            <Text style={styles.emptyCopy}>Try another filter or refresh.</Text>
           </View>
         )}
       </View>
@@ -1073,11 +1025,11 @@ export default function ScheduleScreen() {
         }
         description={
           boardMode === "inspection"
-            ? "Filter the schedule board to one inspection day, then review every visit linked to it."
-            : "Filter the renewal board to one requested day, then review every expired permit booked for it."
+            ? "Filter schedules by date."
+            : "Filter renewals by date."
         }
         confirmLabel={
-          boardMode === "inspection" ? "Filter this day" : "Filter this renewal day"
+          boardMode === "inspection" ? "Apply date" : "Apply date"
         }
         onConfirm={(pickedDate) => {
           setShowDatePicker(false);
@@ -1160,9 +1112,6 @@ const styles = StyleSheet.create({
   boardSwitchMetaActive: {
     color: "rgba(255,255,255,0.82)",
   },
-  boardRow: { gap: 18 },
-  boardRowWide: { flexDirection: "row" },
-  boardCopy: { flex: 1.1 },
   cardEyebrow: {
     color: agriPalette.field,
     fontSize: 12,
@@ -1275,17 +1224,6 @@ const styles = StyleSheet.create({
   },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 18 },
   actionButton: { flexBasis: "48%", flexGrow: 1, minWidth: 220 },
-  featureCard: {
-    minHeight: 200,
-    borderRadius: 28,
-    padding: 18,
-    justifyContent: "space-between",
-    flex: 0.9,
-  },
-  featureEyebrow: { color: "rgba(31,77,46,0.74)", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
-  featureTitle: { marginTop: 14, color: agriPalette.fieldDeep, fontSize: 24, fontWeight: "900", lineHeight: 30 },
-  featureMeta: { marginTop: 10, color: agriPalette.fieldDeep, fontSize: 14, fontWeight: "700", lineHeight: 21 },
-  featureFoot: { marginTop: 14, color: "rgba(31,77,46,0.82)", fontSize: 13, lineHeight: 20, fontWeight: "700" },
   loadingState: { marginVertical: 40 },
   scheduleStack: { gap: 14, marginTop: 18 },
   scheduleCard: { borderRadius: 26, borderWidth: 1, padding: 16 },
@@ -1298,15 +1236,19 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 4,
   },
-  scheduleFrame: { flexDirection: "row", gap: 14 },
+  scheduleFrame: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
   dateBadge: {
     width: 78,
+    minHeight: 94,
+    alignSelf: "flex-start",
+    justifyContent: "center",
     borderRadius: 22,
     backgroundColor: agriPalette.surface,
     borderWidth: 1,
     borderColor: "rgba(31,77,46,0.08)",
     paddingVertical: 12,
     alignItems: "center",
+    flexShrink: 0,
   },
   dateBadgeMonth: { color: agriPalette.field, fontSize: 12, fontWeight: "800", letterSpacing: 1 },
   dateBadgeDay: { marginTop: 8, color: agriPalette.ink, fontSize: 28, fontWeight: "900" },

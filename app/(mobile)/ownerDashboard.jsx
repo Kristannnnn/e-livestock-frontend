@@ -176,11 +176,11 @@ export default function DashboardScreen() {
       title={
         firstName ? `Welcome back, ${firstName}` : "Welcome back to e-Livestock"
       }
-      subtitle="Track only your own livestock forms, monitor expiring permits, and move from the stockyard to your next schedule without sorting through other users' records."
+      subtitle="View your permits, schedules, and account tools."
       summary={
         loading
-          ? "Refreshing your livestock permit overview..."
-          : `${analytics.valid} of your forms are still active for inspection and transport.`
+          ? "Loading your permits..."
+          : `${analytics.valid} active permits ready to use.`
       }
     >
       <LogoutConfirmModal
@@ -194,7 +194,7 @@ export default function DashboardScreen() {
         <StatCard
           label="My forms"
           value={analytics.total}
-          caption="Only records filed under your account are counted here."
+          caption="Forms in your account."
           icon="file-document-multiple-outline"
           accent="meadow"
           loading={loading}
@@ -203,7 +203,7 @@ export default function DashboardScreen() {
         <StatCard
           label="Expired"
           value={analytics.expired}
-          caption="Permits that already need renewal before the next movement."
+          caption="Needs renewal."
           icon="calendar-remove-outline"
           accent="clay"
           loading={loading}
@@ -211,7 +211,7 @@ export default function DashboardScreen() {
         <StatCard
           label="Valid forms"
           value={analytics.valid}
-          caption="Your records that are still usable for inspection and transport."
+          caption="Still active."
           icon="shield-check-outline"
           accent="wheat"
           loading={loading}
@@ -221,39 +221,37 @@ export default function DashboardScreen() {
       <View style={styles.sectionCard}>
         <Text style={styles.sectionEyebrow}>Quick actions</Text>
         <Text style={styles.sectionTitle}>
-          Start the owner task you need next
+          Choose your next step
         </Text>
         <Text style={styles.sectionCopy}>
-          Use these shortcuts as your owner workspace: review active permits,
-          check booking progress, update your profile, or close the session
-          once today&apos;s work is done.
+          Open permits, schedules, settings, or sign out.
         </Text>
 
         <View style={styles.actionStack}>
           <AgriButton
-            title="Review stockyard records"
-            subtitle="Open your permit list to inspect QR details, expiry dates, and renewal-ready forms."
+            title="Open stockyard"
+            subtitle={null}
             icon="barn"
             variant="primary"
             onPress={() => router.push("/stockyard")}
           />
           <AgriButton
-            title="Track appointment progress"
-            subtitle="Check upcoming visits, booked dates, and inspection updates tied to your livestock records."
+            title="Open schedules"
+            subtitle={null}
             icon="calendar-month-outline"
             variant="sky"
             onPress={() => router.push("/checkSchedule")}
           />
           <AgriButton
-            title="Manage account settings"
-            subtitle="Update your owner profile information so records and notifications stay accurate."
+            title="Open settings"
+            subtitle={null}
             icon="cog-outline"
             variant="secondary"
             onPress={() => router.push("/settings")}
           />
           <AgriButton
-            title="End this owner session"
-            subtitle="Sign out securely after reviewing permits, schedules, and profile updates."
+            title="Sign out"
+            subtitle={null}
             icon="logout"
             variant="danger"
             onPress={handleLogout}

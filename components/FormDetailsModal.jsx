@@ -101,8 +101,8 @@ export default function FormDetailsModal({ visible, onClose, form }) {
                 {form.form_id ? `Form #${form.form_id}` : "Form details"}
               </Text>
               <Text style={styles.heroSubtitle}>
-                Review the QR record, owner details, and inspection metadata for{" "}
-                {form.owner_name || "this owner"} in one place.
+                Review the QR, owner, and inspection details for{" "}
+                {form.owner_name || "this owner"}.
               </Text>
             </View>
           </LinearGradient>
@@ -115,7 +115,7 @@ export default function FormDetailsModal({ visible, onClose, form }) {
               {form.qr_code ? (
                 <View style={[styles.qrCard, isWide && styles.topPanelWide]}>
                   <Text style={styles.panelEyebrow}>QR Code</Text>
-                  <Text style={styles.panelTitle}>Livestock permit token</Text>
+                  <Text style={styles.panelTitle}>Permit QR</Text>
                   <View style={styles.qrSurface}>
                     <QRCode
                       value={form.qr_code}
@@ -129,7 +129,7 @@ export default function FormDetailsModal({ visible, onClose, form }) {
 
               <View style={[styles.expiryCard, isWide && styles.topPanelWide]}>
                 <Text style={styles.panelEyebrow}>Status</Text>
-                <Text style={styles.panelTitle}>QR validity window</Text>
+                <Text style={styles.panelTitle}>QR status</Text>
 
                 <View style={styles.statusRow}>
                   <View style={styles.statusPill}>
@@ -151,18 +151,14 @@ export default function FormDetailsModal({ visible, onClose, form }) {
                     Expires on {new Date(form.qr_expiration).toLocaleString()}
                   </Text>
                 ) : (
-                  <Text style={styles.expiryText}>
-                    Expiration metadata was not returned for this form.
-                  </Text>
+                  <Text style={styles.expiryText}>No expiration set.</Text>
                 )}
               </View>
             </View>
 
             <View style={styles.detailsHeader}>
               <Text style={styles.sectionEyebrow}>Field details</Text>
-              <Text style={styles.sectionTitle}>
-                Full record snapshot
-              </Text>
+              <Text style={styles.sectionTitle}>Full record</Text>
             </View>
 
             <View style={[styles.detailsGrid, isWide && styles.detailsGridWide]}>
@@ -182,8 +178,7 @@ export default function FormDetailsModal({ visible, onClose, form }) {
 
           <View style={styles.footer}>
             <AgriButton
-              title="Close details"
-              subtitle="Return to your submitted forms list"
+              title="Close"
               icon="arrow-left"
               variant="earth"
               trailingIcon={null}

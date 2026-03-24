@@ -44,21 +44,21 @@ const PROFILE_FIELDS = [
     label: "First name",
     icon: "account-outline",
     autoCapitalize: "words",
-    helper: "Use the name connected to your account records.",
+    helper: "Name on file.",
   },
   {
     field: "lastName",
     label: "Last name",
     icon: "badge-account-outline",
     autoCapitalize: "words",
-    helper: "This appears on account-linked documents and history.",
+    helper: "Used on records.",
   },
   {
     field: "address",
     label: "Address",
     icon: "map-marker-outline",
     autoCapitalize: "words",
-    helper: "Keep your address updated for profile and permit records.",
+    helper: "Shown on permits.",
   },
   {
     field: "email",
@@ -66,7 +66,7 @@ const PROFILE_FIELDS = [
     icon: "email-outline",
     keyboardType: "email-address",
     autoCapitalize: "none",
-    helper: "We use this for account communication and recovery.",
+    helper: "Used for alerts and recovery.",
   },
   {
     field: "contactNumber",
@@ -74,14 +74,14 @@ const PROFILE_FIELDS = [
     icon: "phone-outline",
     keyboardType: "phone-pad",
     autoCapitalize: "none",
-    helper: "Use an active 11-digit mobile number.",
+    helper: "Use 11 digits.",
   },
   {
     field: "username",
     label: "Username",
     icon: "at",
     autoCapitalize: "none",
-    helper: "This is your sign-in name inside the app.",
+    helper: "Your sign-in name.",
   },
   {
     field: "password",
@@ -89,7 +89,7 @@ const PROFILE_FIELDS = [
     icon: "lock-outline",
     secureTextEntry: true,
     autoCapitalize: "none",
-    helper: "Leave this blank if you do not want to change your password.",
+    helper: "Leave blank to keep current password.",
   },
 ];
 
@@ -567,13 +567,13 @@ export default function SettingsScreen() {
     <DashboardShell
       eyebrow={settingsMeta.eyebrow}
       title="Profile settings"
-      subtitle={`Use this settings page to review the ${settingsMeta.roleLabel} details linked to your account, unlock the field you want to change, and save once everything looks correct.`}
+      subtitle={`Review and update your ${settingsMeta.roleLabel} details.`}
       summary={
         loading
-          ? "Loading your account details..."
+          ? "Loading profile..."
           : hasActiveEditors
-            ? `Some profile fields are unlocked for ${profile.firstName || "your account"}. Save your changes when you're done.`
-            : `Viewing the ${settingsMeta.roleLabel} profile for ${profile.firstName || "your account"}. Tap Edit on any field to unlock it.`
+            ? `Editing ${profile.firstName || "your account"}. Save when ready.`
+            : `Profile for ${profile.firstName || "your account"}. Tap Edit to unlock a field.`
       }
     >
       <LogoutConfirmModal
@@ -598,9 +598,7 @@ export default function SettingsScreen() {
           </View>
         </View>
         <Text style={styles.cardCopy}>
-          These details power your login identity, contact profile, and
-          account-linked records across the app. Keep them accurate so permits,
-          schedules, and notifications stay matched to the right user.
+          Keep these details current so records stay linked to the right account.
         </Text>
 
         <View style={styles.profileHero}>
@@ -656,8 +654,7 @@ export default function SettingsScreen() {
                 : "Your account"}
             </Text>
             <Text style={styles.profilePhotoHint}>
-              Add a clear square photo so your account is easier to recognize in
-              dashboards, forms, and activity history.
+              Add a clear photo so your account is easy to recognize.
             </Text>
           </View>
         </View>
@@ -768,7 +765,7 @@ export default function SettingsScreen() {
                       <Text style={styles.inputCardHint}>
                         {fieldEditable
                           ? fieldConfig.helper
-                          : "Tap Edit profile to unlock this field."}
+                          : "Tap Edit to unlock."}
                       </Text>
                     </View>
                   </View>
@@ -863,12 +860,7 @@ export default function SettingsScreen() {
 
         <View style={styles.actionStack}>
           <AgriButton
-            title={hasUnsavedChanges ? "Save settings" : "No changes yet"}
-            subtitle={
-              hasUnsavedChanges
-                ? `Update your ${settingsMeta.roleLabel} profile`
-                : "Tap Edit on a field, then make your changes"
-            }
+            title={hasUnsavedChanges ? "Save changes" : "No changes"}
             icon="content-save-outline"
             variant="primary"
             loading={saving}
@@ -878,7 +870,6 @@ export default function SettingsScreen() {
           {hasUnsavedChanges ? (
             <AgriButton
               title="Discard changes"
-              subtitle="Reset all unsaved field updates"
               icon="restore"
               variant="muted"
               lightText={false}
@@ -886,15 +877,13 @@ export default function SettingsScreen() {
             />
           ) : null}
           <AgriButton
-            title="Back to dashboard"
-            subtitle={`Return to your ${settingsMeta.dashboardTitle}`}
+            title="Dashboard"
             icon="arrow-left"
             variant="secondary"
             onPress={() => router.replace(settingsMeta.dashboardRoute)}
           />
           <AgriButton
-            title="Logout"
-            subtitle="End this session securely"
+            title="Log out"
             icon="logout"
             variant="danger"
             onPress={handleLogout}

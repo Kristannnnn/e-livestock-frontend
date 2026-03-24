@@ -551,8 +551,6 @@ const InspectorDashboard = () => {
     }
   };
 
-  const selectedFilterLabel =
-    filterOptions.find((option) => option.value === filter)?.label || "Today";
   const baseChartWidth = Math.max(width - 96, 280);
   const activityChartWidth = Math.max(
     baseChartWidth,
@@ -582,28 +580,28 @@ const InspectorDashboard = () => {
     {
       label: "Created forms",
       value: dashboard.total,
-      caption: "Forms submitted from your inspector account in the selected window.",
+      caption: "Forms in this period.",
       icon: "clipboard-text-clock-outline",
       accent: "meadow",
     },
     {
       label: "Active QR",
       value: dashboard.validQr,
-      caption: "Permits still valid and ready for field use right now.",
+      caption: "Ready for field use.",
       icon: "qrcode-scan",
       accent: "wheat",
     },
     {
       label: "Owners served",
       value: dashboard.uniqueOwners,
-      caption: "Distinct livestock owners reached by your inspection work.",
+      caption: "Owners served.",
       icon: "account-group-outline",
       accent: "sky",
     },
     {
       label: "Renewal queue",
       value: dashboard.renewalSummary.pending,
-      caption: "Renewal requests waiting for your action or form reuse.",
+      caption: "Waiting for action.",
       icon: "calendar-refresh-outline",
       accent: "sky",
       onPress: () => router.push("/renewalRequests"),
@@ -611,7 +609,7 @@ const InspectorDashboard = () => {
     {
       label: "Unread alerts",
       value: dashboard.unreadNotifications,
-      caption: "Unread notifications tied to your inspector account.",
+      caption: "Unread updates.",
       icon: "bell-ring-outline",
       accent: "wheat",
       onPress: () => router.push("/notifications"),
@@ -619,7 +617,7 @@ const InspectorDashboard = () => {
     {
       label: "Average weight",
       value: dashboard.averageLiveWeight ? `${dashboard.averageLiveWeight} kg` : "0 kg",
-      caption: "Average live weight recorded across the submitted forms.",
+      caption: "Average recorded weight.",
       icon: "scale-bathroom",
       accent: "meadow",
     },
@@ -758,11 +756,11 @@ const InspectorDashboard = () => {
           ? `Welcome back, Inspector ${firstName}`
           : "Welcome back, Inspector"
       }
-      subtitle="Track inspection output, permit health, renewal flow, and DSS findings from one mobile dashboard shaped around your actual field records."
+      subtitle="Track forms, permits, renewals, and DSS activity."
       summary={
         loading
-          ? "Refreshing your inspector analytics..."
-          : `${dashboard.total} forms recorded in ${selectedFilterLabel.toLowerCase()}, ${dashboard.validQr} permits currently active, ${dashboard.renewalSummary.pending} renewals waiting, and ${dashboard.unreadNotifications} unread alert${dashboard.unreadNotifications === 1 ? "" : "s"}.`
+          ? "Loading dashboard..."
+          : `${dashboard.total} forms, ${dashboard.validQr} active permits, ${dashboard.renewalSummary.pending} renewals waiting.`
       }
     >
       {errorMessage ? (
@@ -780,12 +778,8 @@ const InspectorDashboard = () => {
         <View style={styles.workbenchHeader}>
           <View style={styles.workbenchHeaderCopy}>
             <Text style={styles.cardEyebrow}>Inspector workbench</Text>
-            <Text style={styles.cardTitle}>Move from field task to field insight</Text>
-            <Text style={styles.cardCopy}>
-              Start a new inspection, act on renewal requests, revisit submitted
-              forms, or jump into unread alerts without leaving your analytics
-              view.
-            </Text>
+            <Text style={styles.cardTitle}>Quick actions</Text>
+            <Text style={styles.cardCopy}>Create forms, process renewals, review records, and open alerts.</Text>
           </View>
         </View>
 
@@ -817,11 +811,8 @@ const InspectorDashboard = () => {
               />
             </View>
             <View style={styles.primaryWorkbenchCopy}>
-              <Text style={styles.primaryWorkbenchTitle}>Create a new form</Text>
-              <Text style={styles.primaryWorkbenchText}>
-                Record a fresh livestock inspection and capture owner, species,
-                weight, QR, and DSS details in one flow.
-              </Text>
+              <Text style={styles.primaryWorkbenchTitle}>Create form</Text>
+              <Text style={styles.primaryWorkbenchText}>Start a new livestock inspection record.</Text>
             </View>
             <MaterialCommunityIcons
               name="arrow-right"
@@ -852,11 +843,8 @@ const InspectorDashboard = () => {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.secondaryWorkbenchTitle}>Process renewals</Text>
-              <Text style={styles.secondaryWorkbenchText}>
-                Reopen existing form data, review requests, and complete queued
-                renewals faster.
-              </Text>
+              <Text style={styles.secondaryWorkbenchTitle}>Renewals</Text>
+              <Text style={styles.secondaryWorkbenchText}>Review and complete renewal requests.</Text>
             </Pressable>
 
             <Pressable
@@ -880,11 +868,8 @@ const InspectorDashboard = () => {
                   color={agriPalette.field}
                 />
               </View>
-              <Text style={styles.secondaryWorkbenchTitle}>Review submitted forms</Text>
-              <Text style={styles.secondaryWorkbenchText}>
-                Check owner details, permit validity, and submission history
-                from your latest records.
-              </Text>
+              <Text style={styles.secondaryWorkbenchTitle}>Submitted forms</Text>
+              <Text style={styles.secondaryWorkbenchText}>Open saved records and permit details.</Text>
             </Pressable>
 
             <Pressable
@@ -908,11 +893,8 @@ const InspectorDashboard = () => {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.secondaryWorkbenchTitle}>Unread alerts</Text>
-              <Text style={styles.secondaryWorkbenchText}>
-                Open account notices and keep your inspection communication
-                queue under control.
-              </Text>
+              <Text style={styles.secondaryWorkbenchTitle}>Alerts</Text>
+              <Text style={styles.secondaryWorkbenchText}>Check unread account and workflow updates.</Text>
             </Pressable>
           </View>
         </View>
@@ -935,11 +917,8 @@ const InspectorDashboard = () => {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Reporting lens</Text>
-        <Text style={styles.cardTitle}>Switch the analysis window</Text>
-        <Text style={styles.cardCopy}>
-          Change the period to recalculate your form volume, QR permit health,
-          renewal workflow, livestock mix, and recent activity in one place.
-        </Text>
+        <Text style={styles.cardTitle}>Change the time range</Text>
+        <Text style={styles.cardCopy}>Switch the period to refresh all metrics.</Text>
 
         <View style={styles.filterRow}>
           {filterOptions.map((option) => {
@@ -994,20 +973,14 @@ const InspectorDashboard = () => {
             size={18}
             color={agriPalette.fieldDeep}
           />
-          <Text style={styles.scopeNoteText}>
-            Dashboard scope: only records tied to your logged-in inspector
-            account are included in these analytics.
-          </Text>
+          <Text style={styles.scopeNoteText}>Only records under your account are included.</Text>
         </View>
       </View>
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Inspection flow</Text>
         <Text style={styles.cardTitle}>Submission activity over time</Text>
-        <Text style={styles.cardCopy}>
-          Read your inspection pace across the selected window and see where the
-          strongest submission window occurred.
-        </Text>
+        <Text style={styles.cardCopy}>See how submissions changed over the selected period.</Text>
 
         {loading ? (
           <ActivityIndicator
@@ -1052,7 +1025,7 @@ const InspectorDashboard = () => {
           </View>
         ) : (
           <Text style={styles.emptyText}>
-            No inspection submissions are available for this period yet.
+            No submissions in this period.
           </Text>
         )}
       </View>
@@ -1060,17 +1033,12 @@ const InspectorDashboard = () => {
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Livestock profile</Text>
         <Text style={styles.cardTitle}>Species mix and inspection purpose</Text>
-        <Text style={styles.cardCopy}>
-          These analytics summarize the animals you inspected, the purposes
-          attached to those forms, and the owners most frequently served.
-        </Text>
+        <Text style={styles.cardCopy}>See species, purpose, and owner trends.</Text>
 
         <View style={styles.analysisGrid}>
           <View style={styles.analysisPanel}>
             <Text style={styles.analysisPanelTitle}>Species handled</Text>
-            <Text style={styles.analysisPanelCopy}>
-              Top livestock species based on the submitted inspection forms.
-            </Text>
+            <Text style={styles.analysisPanelCopy}>Top livestock species in your forms.</Text>
 
             {loading ? (
               <ActivityIndicator
@@ -1114,17 +1082,14 @@ const InspectorDashboard = () => {
               </View>
             ) : (
               <Text style={styles.emptyText}>
-                No livestock species distribution is available yet.
+                No species data in this period.
               </Text>
             )}
           </View>
 
           <View style={styles.analysisPanel}>
             <Text style={styles.analysisPanelTitle}>Purpose mix</Text>
-            <Text style={styles.analysisPanelCopy}>
-              Compare why inspections were filed and which owners appear most
-              often in your current workload.
-            </Text>
+            <Text style={styles.analysisPanelCopy}>Compare inspection purposes and owner coverage.</Text>
 
             <View style={styles.meterStack}>
               {dashboard.purposeBreakdown.length ? (
@@ -1139,7 +1104,7 @@ const InspectorDashboard = () => {
                   />
                 ))
               ) : (
-                <Text style={styles.emptyText}>No purpose data found for this period.</Text>
+                <Text style={styles.emptyText}>No purpose data in this period.</Text>
               )}
             </View>
 
@@ -1167,7 +1132,7 @@ const InspectorDashboard = () => {
                     </View>
                   ))
                 ) : (
-                  <Text style={styles.emptyText}>No owner analytics are available yet.</Text>
+                  <Text style={styles.emptyText}>No owner data in this period.</Text>
                 )}
               </View>
             </View>
@@ -1205,18 +1170,12 @@ const InspectorDashboard = () => {
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Permit and compliance pulse</Text>
         <Text style={styles.cardTitle}>QR health, renewals, and DSS findings</Text>
-        <Text style={styles.cardCopy}>
-          Keep permit validity, renewal outcomes, and DSS severity in one
-          glance so the riskiest items surface quickly.
-        </Text>
+        <Text style={styles.cardCopy}>See permit status, renewals, and DSS signals.</Text>
 
         <View style={styles.analysisGrid}>
           <View style={styles.analysisPanel}>
             <Text style={styles.analysisPanelTitle}>QR permit health</Text>
-            <Text style={styles.analysisPanelCopy}>
-              Valid, expiring, and expired permit distribution for your current
-              inspection records.
-            </Text>
+            <Text style={styles.analysisPanelCopy}>Valid, expiring, and expired permit counts.</Text>
             <View style={styles.meterStack}>
               {qrRows.map((item) => (
                 <MeterRow
@@ -1233,10 +1192,7 @@ const InspectorDashboard = () => {
 
           <View style={styles.analysisPanel}>
             <Text style={styles.analysisPanelTitle}>Renewal workflow</Text>
-            <Text style={styles.analysisPanelCopy}>
-              Measure how many renewal requests are still open versus already
-              completed or cancelled.
-            </Text>
+            <Text style={styles.analysisPanelCopy}>Pending, completed, and cancelled renewals.</Text>
             <View style={styles.meterStack}>
               {renewalRows.map((item) => (
                 <MeterRow
@@ -1253,10 +1209,7 @@ const InspectorDashboard = () => {
 
           <View style={styles.analysisPanel}>
             <Text style={styles.analysisPanelTitle}>DSS severity spread</Text>
-            <Text style={styles.analysisPanelCopy}>
-              Severity distribution generated from matched DSS rules on your
-              inspection forms.
-            </Text>
+            <Text style={styles.analysisPanelCopy}>Severity levels from matched DSS rules.</Text>
             <View style={styles.meterStack}>
               {severityItems.length ? (
                 severityItems.map((item) => {
@@ -1276,7 +1229,7 @@ const InspectorDashboard = () => {
                 })
               ) : (
                 <Text style={styles.emptyText}>
-                  No DSS severity findings were returned for this period.
+                  No DSS severity data in this period.
                 </Text>
               )}
             </View>
@@ -1332,7 +1285,7 @@ const InspectorDashboard = () => {
               ))
             ) : (
               <Text style={styles.emptyText}>
-                No DSS keywords were matched in this reporting window.
+                No DSS keywords in this period.
               </Text>
             )}
           </View>
@@ -1342,10 +1295,7 @@ const InspectorDashboard = () => {
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Recent activity</Text>
         <Text style={styles.cardTitle}>Latest forms you submitted</Text>
-        <Text style={styles.cardCopy}>
-          Each card highlights the owner, purpose, QR status, weight, and DSS
-          severity so you can reopen the right record faster.
-        </Text>
+        <Text style={styles.cardCopy}>Reopen recent records fast.</Text>
 
         {loading ? (
           <ActivityIndicator
@@ -1458,23 +1408,19 @@ const InspectorDashboard = () => {
           </View>
         ) : (
           <Text style={styles.emptyText}>
-            No submitted forms were found for this reporting window.
+            No recent forms in this period.
           </Text>
         )}
       </View>
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Quick actions</Text>
-        <Text style={styles.cardTitle}>Handle account-side tasks</Text>
-        <Text style={styles.cardCopy}>
-          Keep support actions nearby for profile maintenance and secure
-          sign-out after the inspection work is finished.
-        </Text>
+        <Text style={styles.cardTitle}>Account actions</Text>
+        <Text style={styles.cardCopy}>Open settings or sign out.</Text>
 
         <View style={styles.actionStack}>
           <AgriButton
-            title="Update inspector settings"
-            subtitle="Keep your account profile and contact details accurate for notifications and form ownership."
+            title="Settings"
             icon="cog-outline"
             variant="sky"
             onPress={() => router.push("/settings")}

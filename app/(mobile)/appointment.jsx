@@ -118,7 +118,7 @@ function getSlotBucket(startTime) {
 function getPermitSummary(expirationDate) {
   const parsed = parseDateOnly(expirationDate);
   if (!parsed) {
-    return { value: "TBD", caption: "Permit expiry is not available yet." };
+    return { value: "TBD", caption: "Permit date missing." };
   }
 
   const today = new Date();
@@ -126,15 +126,15 @@ function getPermitSummary(expirationDate) {
   const diffDays = Math.ceil((parsed - today) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
-    return { value: "Expired", caption: "This permit is already past its booking window." };
+    return { value: "Expired", caption: "Permit expired." };
   }
   if (diffDays === 0) {
-    return { value: "Today", caption: "Permit booking closes today." };
+    return { value: "Today", caption: "Book today." };
   }
 
   return {
     value: `${diffDays}d`,
-    caption: `Book on or before ${formatDateLabel(parsed)}.`,
+    caption: `By ${formatDateLabel(parsed)}.`,
   };
 }
 
@@ -167,6 +167,73 @@ function getSlotPalette(startTime) {
     badgeBackground: "#D6E3EC",
     badgeText: "#315E8F",
     icon: "weather-night",
+  };
+}
+
+function buildBookingSuccessNotice({
+  autoStatus,
+  severityRating,
+  ownerName,
+  eartagNumber,
+  location,
+  date,
+  slot,
+}) {
+  const normalizedStatus = String(autoStatus || "Pending").trim().toLowerCase();
+  const windowLabel = `${formatDateLabel(date)} | ${formatSlotRange(slot)}`;
+
+  if (normalizedStatus === "accepted") {
+    return {
+      status: "accepted",
+      title: "Booking confirmed",
+      message: "Your visit was accepted and added to the schedule.",
+      ownerName,
+      eartagNumber,
+      location,
+      windowLabel,
+      severityRating,
+    };
+  }
+
+  return {
+    status: "pending",
+    title: "Booking submitted",
+    message: "Your visit was saved and is waiting for review.",
+    ownerName,
+    eartagNumber,
+    location,
+    windowLabel,
+    severityRating,
+  };
+}
+
+function getBookingSuccessAppearance(status) {
+  if (status === "accepted") {
+    return {
+      icon: "calendar-check-outline",
+      eyebrow: "Schedule ready",
+      accent: agriPalette.fieldDeep,
+      surface: "#EAF5EE",
+      border: "#B9D3C6",
+      iconSurface: "#DCECE2",
+      pillSurface: "#E1EFE8",
+      pillText: agriPalette.fieldDeep,
+      actionVariant: "primary",
+      statusLabel: "Accepted",
+    };
+  }
+
+  return {
+    icon: "clock-outline",
+    eyebrow: "Waiting for review",
+    accent: "#8A6510",
+    surface: "#FFF7E1",
+    border: "#E8D08B",
+    iconSurface: "#F8E8B5",
+    pillSurface: "#FBF2D3",
+    pillText: "#8A6510",
+    actionVariant: "secondary",
+    statusLabel: "Pending",
   };
 }
 
@@ -223,6 +290,7 @@ export default function Appointment() {
   const [showPicker, setShowPicker] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [successNotice, setSuccessNotice] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -361,12 +429,16 @@ export default function Appointment() {
       );
 
       if (data.status === "success") {
-        Alert.alert(
-          "Appointment Created",
-          `Status: ${data.auto_status}\nSeverity Level: ${
-            data.severity_rating ?? "N/A"
-          }`,
-          [{ text: "OK", onPress: () => router.replace("/stockyard") }]
+        setSuccessNotice(
+          buildBookingSuccessNotice({
+            autoStatus: data.auto_status,
+            severityRating: data.severity_rating,
+            ownerName,
+            eartagNumber,
+            location,
+            date,
+            slot: selectedSlot,
+          })
         );
       } else {
         Alert.alert("Error", data.message || "Failed to create appointment");
@@ -381,6 +453,7 @@ export default function Appointment() {
 
   const permitSummary = getPermitSummary(expirationDate);
   const nextSlot = availableSlots[0] || null;
+  const successAppearance = getBookingSuccessAppearance(successNotice?.status);
   const morningCount = availableSlots.filter(
     (slot) => getSlotBucket(slot?.[0]) === "Morning"
   ).length;
@@ -392,11 +465,11 @@ export default function Appointment() {
     <DashboardShell
       eyebrow="Appointment booking"
       title={ownerName ? `Book a visit for ${ownerName}` : "Schedule an inspection visit"}
-      subtitle="Use this booking board to confirm permit details, choose a valid day, and reserve an inspection window before the QR expires."
+      subtitle="Pick a day and slot for this permit."
       summary={
         formId
-          ? `Form #${formId} is linked and ready for scheduling.`
-          : "Open a livestock permit from the stockyard to link this booking."
+          ? `Form #${formId} ready to book.`
+          : "Open a permit from the stockyard first."
       }
       contentContainerStyle={styles.scrollContent}
     >
@@ -404,7 +477,7 @@ export default function Appointment() {
         <StatCard
           label="Open slots"
           value={loadingSlots ? "..." : availableSlots.length}
-          caption="Live windows on the selected date."
+          caption="Open on this day."
           icon="calendar-clock-outline"
           accent="wheat"
           loading={loadingSlots}
@@ -429,12 +502,8 @@ export default function Appointment() {
         <View style={[styles.heroRow, isWide && styles.heroRowWide]}>
           <View style={styles.heroCopy}>
             <Text style={styles.cardEyebrow}>Permit overview</Text>
-            <Text style={styles.cardTitle}>Confirm the permit before you book</Text>
-            <Text style={styles.cardCopy}>
-              This panel keeps the owner, eartag, location, and permit window
-              visible so you know exactly which livestock record the appointment
-              belongs to.
-            </Text>
+            <Text style={styles.cardTitle}>Confirm permit</Text>
+            <Text style={styles.cardCopy}>Check the linked record before booking.</Text>
 
             <View style={[styles.infoGrid, isWide && styles.infoGridWide]}>
               <View style={styles.infoCard}>
@@ -461,8 +530,8 @@ export default function Appointment() {
 
             <View style={styles.actionRow}>
               <AgriButton
-                title="Pick another day"
-                subtitle={`Open the calendar for ${formatDateLabel(date)}`}
+                title="Pick day"
+                subtitle={null}
                 icon="calendar-edit-outline"
                 variant="secondary"
                 compact
@@ -472,7 +541,7 @@ export default function Appointment() {
               />
               <AgriButton
                 title="Refresh slots"
-                subtitle="Reload available times for this date"
+                subtitle={null}
                 icon="refresh"
                 variant="sky"
                 compact
@@ -504,8 +573,8 @@ export default function Appointment() {
             </View>
             <Text style={styles.highlightCopy}>
               {nextSlot
-                ? "Tap any open slot below to confirm the appointment."
-                : "Try another date or refresh the board for newly opened times."}
+                ? "Tap a slot below."
+                : "Try another date."}
             </Text>
           </View>
         </View>
@@ -515,11 +584,8 @@ export default function Appointment() {
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderCopy}>
             <Text style={styles.cardEyebrow}>Available slots</Text>
-            <Text style={styles.cardTitle}>Choose the booking window that fits</Text>
-            <Text style={styles.cardCopy}>
-              Review each open slot with the day and time already attached, then
-              tap one to continue to confirmation.
-            </Text>
+            <Text style={styles.cardTitle}>Choose a slot</Text>
+            <Text style={styles.cardCopy}>Tap a time to continue.</Text>
           </View>
           <View style={styles.queueBadge}>
             <MaterialCommunityIcons
@@ -588,8 +654,8 @@ export default function Appointment() {
 
                   <Text style={styles.slotHint}>
                     {index === 0
-                      ? "Earliest open visit for this day."
-                      : "Tap to reserve this inspection window."}
+                      ? "Earliest open slot."
+                      : "Tap to book."}
                   </Text>
                 </Pressable>
               );
@@ -604,16 +670,16 @@ export default function Appointment() {
             />
             <Text style={styles.emptyTitle}>No open visits on this day</Text>
             <Text style={styles.emptyCopy}>
-              The selected date is currently full. Try another day before{" "}
+              Try another day before{" "}
               {parsedExpirationDate
                 ? formatDateLabel(parsedExpirationDate)
                 : "the permit expires"}
-              , or refresh to check for cancellations.
+              .
             </Text>
             <View style={styles.actionRow}>
               <AgriButton
-                title="Choose another day"
-                subtitle="Open the date picker"
+                title="Pick day"
+                subtitle={null}
                 icon="calendar-range"
                 variant="secondary"
                 compact
@@ -622,8 +688,8 @@ export default function Appointment() {
                 style={styles.actionButton}
               />
               <AgriButton
-                title="Refresh board"
-                subtitle="Check availability again"
+                title="Refresh"
+                subtitle={null}
                 icon="refresh"
                 variant="sky"
                 compact
@@ -641,9 +707,9 @@ export default function Appointment() {
         value={date > maxDate ? maxDate : date}
         minimumDate={minDate}
         maximumDate={maxDate}
-        title="Choose the appointment day"
-        description="Select the inspection day you want to review before booking an available time slot."
-        confirmLabel="Use this booking day"
+        title="Choose a day"
+        description="Pick a day to check open slots."
+        confirmLabel="Use this day"
         onConfirm={(selectedDate) => {
           setShowPicker(false);
           setDate(selectedDate);
@@ -662,11 +728,8 @@ export default function Appointment() {
           <View style={styles.modalTint} />
           <View style={styles.modalBox}>
             <Text style={styles.modalEyebrow}>Confirm booking</Text>
-            <Text style={styles.modalTitle}>Reserve this inspection visit?</Text>
-            <Text style={styles.modalCopy}>
-              This appointment will stay linked to the selected livestock permit
-              and appear in the schedule board after booking.
-            </Text>
+            <Text style={styles.modalTitle}>Book this visit?</Text>
+            <Text style={styles.modalCopy}>This will be added to your schedule.</Text>
 
             <View style={styles.modalSummary}>
               <Text style={styles.modalSummaryText}>
@@ -681,8 +744,8 @@ export default function Appointment() {
 
             <View style={styles.modalActions}>
               <AgriButton
-                title="Confirm appointment"
-                subtitle="Save this visit to the schedule board"
+                title="Confirm"
+                subtitle={null}
                 icon="check-circle-outline"
                 variant="primary"
                 compact
@@ -692,8 +755,8 @@ export default function Appointment() {
                 onPress={bookSlot}
               />
               <AgriButton
-                title="Keep browsing"
-                subtitle="Go back and compare more available slots"
+                title="Back"
+                subtitle={null}
                 icon="arrow-left"
                 variant="muted"
                 compact
@@ -703,6 +766,165 @@ export default function Appointment() {
                 onPress={() => setConfirmVisible(false)}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={Boolean(successNotice)}
+        animationType="fade"
+        onRequestClose={() => setSuccessNotice(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView
+            intensity={36}
+            tint="dark"
+            experimentalBlurMethod="dimezisBlurView"
+            style={styles.blurBackdrop}
+          />
+          <View style={styles.modalTint} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSuccessNotice(null)}
+          />
+
+          <View
+            style={[
+              styles.successBox,
+              { borderColor: successAppearance.border },
+            ]}
+          >
+            <View
+              style={[
+                styles.successAccentBar,
+                { backgroundColor: successAppearance.accent },
+              ]}
+            />
+
+            <View style={styles.successHeader}>
+              <View
+                style={[
+                  styles.successIconWrap,
+                  { backgroundColor: successAppearance.iconSurface },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={successAppearance.icon}
+                  size={28}
+                  color={successAppearance.accent}
+                />
+              </View>
+
+              <View style={styles.successHeaderCopy}>
+                <Text
+                  style={[
+                    styles.successEyebrow,
+                    { color: successAppearance.accent },
+                  ]}
+                >
+                  {successAppearance.eyebrow}
+                </Text>
+                <Text style={styles.successTitle}>
+                  {successNotice?.title || "Booking saved"}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.successCopy}>
+              {successNotice?.message || "Your visit was added to the schedule."}
+            </Text>
+
+            <View
+              style={[
+                styles.successStatusPill,
+                { backgroundColor: successAppearance.pillSurface },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={successAppearance.icon}
+                size={16}
+                color={successAppearance.pillText}
+              />
+              <Text
+                style={[
+                  styles.successStatusText,
+                  { color: successAppearance.pillText },
+                ]}
+              >
+                {successAppearance.statusLabel}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.successDetailsCard,
+                {
+                  backgroundColor: successAppearance.surface,
+                  borderColor: successAppearance.border,
+                },
+              ]}
+            >
+              <View style={styles.successDetailRow}>
+                <MaterialCommunityIcons
+                  name="account-outline"
+                  size={16}
+                  color={successAppearance.accent}
+                />
+                <Text style={styles.successDetailText}>
+                  {successNotice?.ownerName || "Owner not loaded"}
+                  {successNotice?.eartagNumber
+                    ? ` | ${successNotice.eartagNumber}`
+                    : ""}
+                </Text>
+              </View>
+
+              <View style={styles.successDetailRow}>
+                <MaterialCommunityIcons
+                  name="calendar-clock-outline"
+                  size={16}
+                  color={successAppearance.accent}
+                />
+                <Text style={styles.successDetailText}>
+                  {successNotice?.windowLabel || "Time not available"}
+                </Text>
+              </View>
+
+              {successNotice?.location ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="map-marker-outline"
+                    size={16}
+                    color={successAppearance.accent}
+                  />
+                  <Text style={styles.successDetailText}>
+                    {successNotice.location}
+                  </Text>
+                </View>
+              ) : null}
+
+              {successNotice?.severityRating !== null &&
+              successNotice?.severityRating !== undefined ? (
+                <View style={styles.successSeverityRow}>
+                  <Text style={styles.successSeverityLabel}>Severity</Text>
+                  <Text style={styles.successSeverityValue}>
+                    {successNotice.severityRating}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <AgriButton
+              title="Back to stockyard"
+              icon="arrow-left"
+              variant={successAppearance.actionVariant}
+              compact
+              trailingIcon={false}
+              onPress={() => {
+                setSuccessNotice(null);
+                router.replace("/stockyard");
+              }}
+            />
           </View>
         </View>
       </Modal>
@@ -1046,5 +1268,111 @@ const styles = StyleSheet.create({
   modalActions: {
     gap: 10,
     marginTop: 18,
+  },
+  successBox: {
+    width: "100%",
+    maxWidth: 430,
+    borderRadius: 30,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  successAccentBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+  },
+  successHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  successIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successHeaderCopy: {
+    flex: 1,
+  },
+  successEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  successTitle: {
+    marginTop: 6,
+    color: agriPalette.ink,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  successCopy: {
+    marginTop: 16,
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  successStatusPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  successStatusText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  successDetailsCard: {
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  successDetailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  successDetailText: {
+    flex: 1,
+    color: agriPalette.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
+  successSeverityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(32,49,38,0.08)",
+    paddingTop: 12,
+  },
+  successSeverityLabel: {
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  successSeverityValue: {
+    color: agriPalette.ink,
+    fontSize: 18,
+    fontWeight: "900",
   },
 });

@@ -105,11 +105,11 @@ export default function DashboardScreen() {
           ? `Welcome back, Dr. ${firstName}`
           : "Welcome back, Antemortem Inspector"
       }
-      subtitle="Follow slaughter preparation, scheduled inspections, and pending checks from a dashboard that keeps your profile and next actions visible right away."
+      subtitle="Track schedules, pending checks, and completed work."
       summary={
         loading
-          ? "Refreshing antemortem analytics..."
-          : `${analytics.scheduled} scheduled and ${analytics.ongoing} ongoing inspections right now.`
+          ? "Loading dashboard..."
+          : `${analytics.scheduled} scheduled, ${analytics.ongoing} ongoing.`
       }
     >
       <LogoutConfirmModal
@@ -123,7 +123,7 @@ export default function DashboardScreen() {
         <StatCard
           label="Slaughtered"
           value={analytics.slaughtered}
-          caption="Completed animal inspections and processing records."
+          caption="Completed records."
           icon="cow"
           accent="meadow"
           loading={loading}
@@ -131,7 +131,7 @@ export default function DashboardScreen() {
         <StatCard
           label="Scheduled"
           value={analytics.scheduled}
-          caption="Upcoming livestock checks already queued."
+          caption="Upcoming visits."
           icon="calendar-check-outline"
           accent="wheat"
           loading={loading}
@@ -139,7 +139,7 @@ export default function DashboardScreen() {
         <StatCard
           label="Pending"
           value={analytics.pending}
-          caption="Requests still waiting for an antemortem review."
+          caption="Waiting for review."
           icon="clock-outline"
           accent="clay"
           loading={loading}
@@ -147,7 +147,7 @@ export default function DashboardScreen() {
         <StatCard
           label="Ongoing"
           value={analytics.ongoing}
-          caption="Inspections currently in progress in the field."
+          caption="In the field."
           icon="progress-clock"
           accent="sky"
           loading={loading}
@@ -156,38 +156,30 @@ export default function DashboardScreen() {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Action center</Text>
-        <Text style={styles.cardTitle}>Continue the antemortem workflow</Text>
-        <Text style={styles.cardCopy}>
-          These shortcuts guide the next field step: open the schedule board,
-          verify a QR on-site, adjust your profile, or sign out when the round
-          is complete.
-        </Text>
+        <Text style={styles.cardTitle}>Quick actions</Text>
+        <Text style={styles.cardCopy}>Open schedules, scan a QR, update settings, or sign out.</Text>
 
         <View style={styles.actionStack}>
           <AgriButton
-            title="Open schedule board"
-            subtitle="Review pending, accepted, ongoing, and completed visits before heading to the field."
+            title="Schedules"
             icon="calendar-month-outline"
             variant="primary"
             onPress={() => router.push("/antemortemSchedules")}
           />
           <AgriButton
-            title="Verify permit QR"
-            subtitle="Launch the scanner to confirm a livestock record before inspection starts on-site."
+            title="Verify QR"
             icon="qrcode-scan"
             variant="secondary"
             onPress={() => router.push("/antemortemScanQRcode")}
           />
           <AgriButton
-            title="Manage profile settings"
-            subtitle="Update your antemortem account details so schedule activity and notifications stay accurate."
+            title="Settings"
             icon="cog-outline"
             variant="sky"
             onPress={() => router.push("/settings")}
           />
           <AgriButton
-            title="End this field session"
-            subtitle="Sign out securely after reviewing schedules, scans, and inspection progress."
+            title="Log out"
             icon="logout"
             variant="danger"
             onPress={handleLogout}

@@ -37,13 +37,13 @@ function getRenewalStatusMessage(request) {
   const renewalStatus = normalizeStatusLabel(request?.status) || "Pending";
   if (renewalStatus === "Completed") {
     return Number(request?.renewed_form_id) > 0
-      ? `Renewal completed and moved into form #${Number(request.renewed_form_id)}.`
-      : "Renewal completed and converted into a refreshed permit.";
+      ? `Saved as form #${Number(request.renewed_form_id)}.`
+      : "Renewal completed.";
   }
   if (renewalStatus === "Cancelled") {
-    return String(request?.cancel_reason || "").trim() || "This renewal request was cancelled and removed from the queue.";
+    return String(request?.cancel_reason || "").trim() || "Renewal cancelled.";
   }
-  return "Your renewal request is booked and waiting for inspector action.";
+  return "Waiting for review.";
 }
 
 export default function OwnerRenewalBoard({
@@ -72,16 +72,16 @@ export default function OwnerRenewalBoard({
   return (
     <>
       <View style={styles.statsGrid}>
-        <StatCard label="All renewals" value={requests.length} caption="Every booked renewal request." icon="calendar-month-outline" accent="meadow" loading={loading} />
-        <StatCard label="Pending" value={pendingCount} caption="Waiting for inspector action." icon="calendar-clock-outline" accent="wheat" loading={loading} />
-        <StatCard label="Completed" value={completedCount} caption="Converted into a new permit." icon="check-circle-outline" accent="sky" loading={loading} />
-        <StatCard label="Cancelled" value={cancelledCount} caption="Cancelled or missed renewal days." icon="close-circle-outline" accent="clay" loading={loading} />
+        <StatCard label="All renewals" value={requests.length} caption="Booked requests." icon="calendar-month-outline" accent="meadow" loading={loading} />
+        <StatCard label="Pending" value={pendingCount} caption="Awaiting review." icon="calendar-clock-outline" accent="wheat" loading={loading} />
+        <StatCard label="Completed" value={completedCount} caption="New permit issued." icon="check-circle-outline" accent="sky" loading={loading} />
+        <StatCard label="Cancelled" value={cancelledCount} caption="Cancelled requests." icon="close-circle-outline" accent="clay" loading={loading} />
       </View>
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Renewal board</Text>
-        <Text style={styles.cardTitle}>Review the renewal requests you booked</Text>
-        <Text style={styles.cardCopy}>Filter by status or day to follow each expired permit from booking through completion.</Text>
+        <Text style={styles.cardTitle}>Filter renewals</Text>
+        <Text style={styles.cardCopy}>Use status or date.</Text>
 
         <View style={styles.filterRow}>
           {renewalStatusOptions.map((option) => {
@@ -138,15 +138,15 @@ export default function OwnerRenewalBoard({
         </View>
 
         <View style={styles.actionRow}>
-          <AgriButton title="Refresh renewals" subtitle="Reload the newest renewal request updates" icon="refresh" variant="secondary" compact trailingIcon={false} onPress={onRefresh} style={styles.actionButton} />
-          <AgriButton title="Open stockyard" subtitle="Review expired permits and renewal-ready forms" icon="barn" variant="sky" compact onPress={onOpenStockyard} style={styles.actionButton} />
+          <AgriButton title="Refresh" subtitle={null} icon="refresh" variant="secondary" compact trailingIcon={false} onPress={onRefresh} style={styles.actionButton} />
+          <AgriButton title="Stockyard" subtitle={null} icon="barn" variant="sky" compact onPress={onOpenStockyard} style={styles.actionButton} />
         </View>
       </View>
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Renewal requests</Text>
-        <Text style={styles.cardTitle}>Review each renewal with full context</Text>
-        <Text style={styles.cardCopy}>Each renewal card shows the booked day, permit reference, and latest outcome for that expired record.</Text>
+        <Text style={styles.cardTitle}>Your renewal requests</Text>
+        <Text style={styles.cardCopy}>See status and permit details.</Text>
 
         {loading ? (
           <View style={styles.loadingWrap}><Text style={styles.loadingText}>Loading renewals...</Text></View>
@@ -188,8 +188,8 @@ export default function OwnerRenewalBoard({
                       </View>
                       {canCancel ? (
                         <AgriButton
-                          title="Cancel renewal"
-                          subtitle="Remove this renewal day from the active queue"
+                          title="Cancel"
+                          subtitle={null}
                           icon="close-circle-outline"
                           variant="danger"
                           compact
@@ -209,7 +209,7 @@ export default function OwnerRenewalBoard({
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="calendar-refresh-outline" size={34} color={agriPalette.field} />
             <Text style={styles.emptyTitle}>No renewals in this filter</Text>
-            <Text style={styles.emptyCopy}>Try another status chip, refresh the board, or return to the stockyard to request a renewal.</Text>
+            <Text style={styles.emptyCopy}>Try another filter or refresh.</Text>
           </View>
         )}
       </View>
@@ -251,8 +251,20 @@ const styles = StyleSheet.create({
   requestStack: { gap: 14, marginTop: 18 },
   requestCard: { borderRadius: 26, borderWidth: 1, padding: 16 },
   requestCardHighlighted: { borderWidth: 2, borderColor: agriPalette.field, shadowColor: agriPalette.fieldDeep, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
-  requestFrame: { flexDirection: "row", gap: 14 },
-  dateBadge: { width: 78, borderRadius: 22, backgroundColor: agriPalette.surface, borderWidth: 1, borderColor: "rgba(31,77,46,0.08)", paddingVertical: 12, alignItems: "center" },
+  requestFrame: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  dateBadge: {
+    width: 78,
+    minHeight: 94,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    borderRadius: 22,
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    borderColor: "rgba(31,77,46,0.08)",
+    paddingVertical: 12,
+    alignItems: "center",
+    flexShrink: 0,
+  },
   dateBadgeMonth: { color: agriPalette.field, fontSize: 12, fontWeight: "800", letterSpacing: 1 },
   dateBadgeDay: { marginTop: 8, color: agriPalette.ink, fontSize: 28, fontWeight: "900" },
   requestBody: { flex: 1 },

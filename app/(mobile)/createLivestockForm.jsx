@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -201,6 +202,71 @@ function getAnimalSpeciesIcon(species) {
   return "paw";
 }
 
+function buildSubmissionSuccessNotice(data, options = {}) {
+  const forms = Array.isArray(data?.forms) ? data.forms : [];
+  const firstForm = forms[0] || {};
+  const animalCount = Number(data?.animal_count) || forms.length || 0;
+  const isRenewalMode = Boolean(options.isRenewalMode);
+
+  if (isRenewalMode) {
+    return {
+      mode: "renewal",
+      title: "Renewal completed",
+      message:
+        "The renewed form was created and this request is now marked complete.",
+      formId: Number(data?.form_id) || Number(firstForm.form_id) || 0,
+      renewalRequestId: Number(data?.renewal_request_id) || 0,
+      ownerName:
+        firstForm.owner_name || options.renewalContext?.owner_name || "",
+      species: firstForm.animal_species || "",
+      eartagNumber: firstForm.animal_unique_identifier || "",
+      qrExpiration: data?.qr_expiration || firstForm.qr_expiration || "",
+    };
+  }
+
+  return {
+    mode: "batch",
+    title: "Batch submitted",
+    message: `Created ${animalCount} livestock record${
+      animalCount === 1 ? "" : "s"
+    } successfully.`,
+    formId: Number(data?.form_id) || Number(firstForm.form_id) || 0,
+    batchId: data?.batch_id || "",
+    animalCount,
+    ownerName: firstForm.owner_name || "",
+    species: firstForm.animal_species || "",
+    qrExpiration: data?.qr_expiration || firstForm.qr_expiration || "",
+  };
+}
+
+function getSubmissionSuccessAppearance(mode) {
+  if (mode === "renewal") {
+    return {
+      icon: "file-replace-outline",
+      eyebrow: "Renewal done",
+      accent: agriPalette.fieldDeep,
+      surface: "#EAF5EE",
+      border: "#B9D3C6",
+      iconSurface: "#DCECE2",
+      pillSurface: "#E1EFE8",
+      pillText: agriPalette.fieldDeep,
+      label: "Completed",
+    };
+  }
+
+  return {
+    icon: "file-check-outline",
+    eyebrow: "Batch saved",
+    accent: "#315E8F",
+    surface: "#EDF3FA",
+    border: "#C4D5EA",
+    iconSurface: "#E2EAF5",
+    pillSurface: "#E6EEF7",
+    pillText: "#315E8F",
+    label: "Submitted",
+  };
+}
+
 function validateAnimalFields(animalDraft, queuedAnimals, editingId) {
   const errors = {};
   const uniqueIdentifier = String(animalDraft.animal_unique_identifier || "").trim();
@@ -343,6 +409,7 @@ export default function AddLivestockForm() {
   const [selectSheet, setSelectSheet] = useState(null);
   const [renewalContext, setRenewalContext] = useState(null);
   const [loadingRenewal, setLoadingRenewal] = useState(false);
+  const [submissionSuccessNotice, setSubmissionSuccessNotice] = useState(null);
 
   useEffect(() => {
     const loadAccount = async () => {
@@ -925,13 +992,11 @@ export default function AddLivestockForm() {
       setBatchErrors({});
       resetAnimalDraft();
 
-      Alert.alert(
-        "Success",
-        isRenewalMode
-          ? `Renewal completed successfully for form #${renewalContext?.form_id}.`
-          : `Batch submitted successfully for ${forms.length} animal${
-              forms.length === 1 ? "" : "s"
-            }.`
+      setSubmissionSuccessNotice(
+        buildSubmissionSuccessNotice(data, {
+          isRenewalMode,
+          renewalContext,
+        })
       );
     } catch (error) {
       console.error("Submit error:", error);
@@ -1065,6 +1130,7 @@ export default function AddLivestockForm() {
     setAnimalErrors({});
     setFocusedField("");
     setRenewalContext(null);
+    setSubmissionSuccessNotice(null);
 
     if (renewalRequestId) {
       router.replace("/createLivestockForm");
@@ -1089,6 +1155,10 @@ export default function AddLivestockForm() {
       </DashboardShell>
     );
   }
+
+  const submissionSuccessAppearance = getSubmissionSuccessAppearance(
+    submissionSuccessNotice?.mode
+  );
 
   return (
     <DashboardShell
@@ -1636,6 +1706,206 @@ export default function AddLivestockForm() {
       </View>
 
       <Modal
+        visible={Boolean(submissionSuccessNotice)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSubmissionSuccessNotice(null)}
+      >
+        <View style={styles.successOverlay}>
+          <BlurView
+            intensity={34}
+            tint="dark"
+            experimentalBlurMethod="dimezisBlurView"
+            style={styles.successBlurBackdrop}
+          />
+          <View style={styles.successTint} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSubmissionSuccessNotice(null)}
+          />
+
+          <View
+            style={[
+              styles.successCard,
+              { borderColor: submissionSuccessAppearance.border },
+            ]}
+          >
+            <View
+              style={[
+                styles.successAccentBar,
+                { backgroundColor: submissionSuccessAppearance.accent },
+              ]}
+            />
+
+            <View style={styles.successHeader}>
+              <View
+                style={[
+                  styles.successIconWrap,
+                  { backgroundColor: submissionSuccessAppearance.iconSurface },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={submissionSuccessAppearance.icon}
+                  size={28}
+                  color={submissionSuccessAppearance.accent}
+                />
+              </View>
+
+              <View style={styles.successHeaderCopy}>
+                <Text
+                  style={[
+                    styles.successEyebrow,
+                    { color: submissionSuccessAppearance.accent },
+                  ]}
+                >
+                  {submissionSuccessAppearance.eyebrow}
+                </Text>
+                <Text style={styles.successTitle}>
+                  {submissionSuccessNotice?.title || "Saved"}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.successCopy}>
+              {submissionSuccessNotice?.message || "The form was saved."}
+            </Text>
+
+            <View
+              style={[
+                styles.successStatusPill,
+                { backgroundColor: submissionSuccessAppearance.pillSurface },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={submissionSuccessAppearance.icon}
+                size={16}
+                color={submissionSuccessAppearance.pillText}
+              />
+              <Text
+                style={[
+                  styles.successStatusText,
+                  { color: submissionSuccessAppearance.pillText },
+                ]}
+              >
+                {submissionSuccessAppearance.label}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.successDetailsCard,
+                {
+                  backgroundColor: submissionSuccessAppearance.surface,
+                  borderColor: submissionSuccessAppearance.border,
+                },
+              ]}
+            >
+              {submissionSuccessNotice?.renewalRequestId ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="calendar-refresh-outline"
+                    size={16}
+                    color={submissionSuccessAppearance.accent}
+                  />
+                  <Text style={styles.successDetailText}>
+                    Renewal request #{submissionSuccessNotice.renewalRequestId}
+                  </Text>
+                </View>
+              ) : null}
+
+              {submissionSuccessNotice?.formId ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="file-document-outline"
+                    size={16}
+                    color={submissionSuccessAppearance.accent}
+                  />
+                  <Text style={styles.successDetailText}>
+                    Form #{submissionSuccessNotice.formId}
+                    {submissionSuccessNotice?.batchId
+                      ? ` | ${submissionSuccessNotice.batchId}`
+                      : ""}
+                  </Text>
+                </View>
+              ) : null}
+
+              {(submissionSuccessNotice?.ownerName ||
+                submissionSuccessNotice?.eartagNumber) ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="account-outline"
+                    size={16}
+                    color={submissionSuccessAppearance.accent}
+                  />
+                  <Text style={styles.successDetailText}>
+                    {submissionSuccessNotice?.ownerName || "Owner not recorded"}
+                    {submissionSuccessNotice?.eartagNumber
+                      ? ` | ${submissionSuccessNotice.eartagNumber}`
+                      : ""}
+                  </Text>
+                </View>
+              ) : null}
+
+              {submissionSuccessNotice?.species ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="cow"
+                    size={16}
+                    color={submissionSuccessAppearance.accent}
+                  />
+                  <Text style={styles.successDetailText}>
+                    {submissionSuccessNotice.species}
+                    {submissionSuccessNotice?.animalCount
+                      ? ` | ${submissionSuccessNotice.animalCount} animal${
+                          submissionSuccessNotice.animalCount === 1 ? "" : "s"
+                        }`
+                      : ""}
+                  </Text>
+                </View>
+              ) : null}
+
+              {submissionSuccessNotice?.qrExpiration ? (
+                <View style={styles.successDetailRow}>
+                  <MaterialCommunityIcons
+                    name="qrcode-scan"
+                    size={16}
+                    color={submissionSuccessAppearance.accent}
+                  />
+                  <Text style={styles.successDetailText}>
+                    QR valid until {submissionSuccessNotice.qrExpiration}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.successActions}>
+              <AgriButton
+                title="Continue"
+                icon="check"
+                variant="primary"
+                compact
+                trailingIcon={false}
+                onPress={() => setSubmissionSuccessNotice(null)}
+              />
+              {submissionSuccessNotice?.mode === "renewal" ? (
+                <AgriButton
+                  title="Renewal queue"
+                  icon="calendar-month-outline"
+                  variant="secondary"
+                  compact
+                  trailingIcon={false}
+                  onPress={() => {
+                    setSubmissionSuccessNotice(null);
+                    router.replace("/renewalRequests");
+                  }}
+                />
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={Boolean(selectSheet)}
         transparent
         animationType="fade"
@@ -1750,6 +2020,108 @@ export default function AddLivestockForm() {
 }
 
 const styles = StyleSheet.create({
+  successOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  successBlurBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  successTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(12, 24, 16, 0.44)",
+  },
+  successCard: {
+    width: "100%",
+    maxWidth: 430,
+    borderRadius: 30,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    backgroundColor: agriPalette.surface,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  successAccentBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+  },
+  successHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  successIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successHeaderCopy: {
+    flex: 1,
+  },
+  successEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  successTitle: {
+    marginTop: 6,
+    color: agriPalette.ink,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  successCopy: {
+    marginTop: 16,
+    color: agriPalette.inkSoft,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  successStatusPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  successStatusText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  successDetailsCard: {
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  successDetailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  successDetailText: {
+    flex: 1,
+    color: agriPalette.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
+  successActions: {
+    gap: 10,
+  },
   card: {
     backgroundColor: agriPalette.surface,
     borderRadius: 30,

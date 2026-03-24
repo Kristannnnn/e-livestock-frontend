@@ -40,12 +40,12 @@ export default function LogoutConfirmModal({
 
           <Text style={styles.eyebrow}>Secure logout</Text>
           <Text style={styles.title}>
-            {loading ? "Signing you out..." : "Log out of this account?"}
+            {loading ? "Signing out" : "Log out?"}
           </Text>
           <Text style={styles.copy}>
             {loading
-              ? "Please wait while we clear this device session and return you to the sign-in screen."
-              : "You will return to the sign-in screen on this device. Your saved records will stay safe, but unsaved changes on this page may be lost."}
+              ? "Clearing this device session."
+              : "You will return to the sign-in screen. Unsaved changes may be lost."}
           </Text>
 
           <View style={styles.noticeCard}>
@@ -56,8 +56,8 @@ export default function LogoutConfirmModal({
             />
             <Text style={styles.noticeText}>
               {loading
-                ? "Finishing logout safely..."
-                : "Use logout when you are done so the next person does not open your account on this device."}
+                ? "Finishing logout..."
+                : "Log out when you're done using this device."}
             </Text>
           </View>
 
@@ -65,15 +65,14 @@ export default function LogoutConfirmModal({
             <View style={styles.loadingRow}>
               <ActivityIndicator color={agriPalette.field} />
               <Text style={styles.loadingText}>
-                Removing local session data and push-device access.
+                Removing local session data.
               </Text>
             </View>
           ) : null}
 
           <View style={styles.actionStack}>
             <AgriButton
-              title="Stay signed in"
-              subtitle="Return to the current screen"
+              title="Stay"
               icon="arrow-left"
               variant="secondary"
               compact
@@ -82,12 +81,7 @@ export default function LogoutConfirmModal({
               onPress={onCancel}
             />
             <AgriButton
-              title={loading ? "Signing out" : "Log out now"}
-              subtitle={
-                loading
-                  ? "Please wait a moment"
-                  : "End this account session securely"
-              }
+              title={loading ? "Signing out" : "Log out"}
               icon="logout"
               variant="danger"
               compact

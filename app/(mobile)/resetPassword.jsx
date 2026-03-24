@@ -35,7 +35,7 @@ export default function ResetPassword() {
       setNotice({
         tone: "error",
         title: "Missing email",
-        message: "Returning to login so you can restart the recovery flow safely.",
+        message: "Returning to login.",
       });
 
       const timeoutId = setTimeout(() => {
@@ -53,7 +53,7 @@ export default function ResetPassword() {
       setNotice({
         tone: "error",
         title: "Missing fields",
-        message: "Enter both password fields before updating your account password.",
+        message: "Enter both password fields.",
       });
       return;
     }
@@ -80,7 +80,7 @@ export default function ResetPassword() {
     setNotice({
       tone: "info",
       title: "Updating password",
-      message: "Saving your new login password and securing your account.",
+      message: "Saving your new password.",
     });
 
     try {
@@ -96,7 +96,7 @@ export default function ResetPassword() {
         setNotice({
           tone: "success",
           title: "Password reset complete",
-          message: "Your new password is ready. Returning you to login now.",
+          message: "Password updated. Returning to login.",
         });
         await pause(800);
         router.replace({ pathname: "/", params: { notice: "password_reset" } });
@@ -122,16 +122,13 @@ export default function ResetPassword() {
   return (
     <AuthRecoveryShell
       eyebrow="Reset password"
-      title="Create a fresh password"
-      subtitle="Set a new password for your e-Livestock account after your recovery code has already been verified."
+      title="Reset password"
+      subtitle="Set a new password for your account."
       step={3}
     >
       <Text style={styles.sectionEyebrow}>Password update</Text>
-      <Text style={styles.sectionTitle}>Finish your recovery</Text>
-      <Text style={styles.sectionCopy}>
-        Choose a new password for the account below. Use something secure and
-        memorable so you can get back to your dashboard without friction.
-      </Text>
+      <Text style={styles.sectionTitle}>Set a new password</Text>
+      <Text style={styles.sectionCopy}>Use at least 6 characters and confirm it below.</Text>
 
       {notice ? (
         <FeedbackBanner
@@ -151,7 +148,7 @@ export default function ResetPassword() {
           />
         </View>
         <View style={styles.accountTextWrap}>
-          <Text style={styles.accountLabel}>Updating account</Text>
+          <Text style={styles.accountLabel}>Account</Text>
           <Text style={styles.accountValue}>{email || "Email not available"}</Text>
         </View>
       </View>
@@ -205,16 +202,15 @@ export default function ResetPassword() {
       />
 
       <View style={styles.requirementsCard}>
-        <Text style={styles.requirementsTitle}>Password checklist</Text>
-        <RequirementRow label="Use at least 6 characters" />
-        <RequirementRow label="Keep the new password private" />
-        <RequirementRow label="Make sure both entries match exactly" />
+        <Text style={styles.requirementsTitle}>Checklist</Text>
+        <RequirementRow label="At least 6 characters" />
+        <RequirementRow label="Keep it private" />
+        <RequirementRow label="Both fields match" />
       </View>
 
       <View style={styles.actionStack}>
         <AgriButton
           title="Update password"
-          subtitle="Save your new login password"
           icon="lock-reset"
           loading={loading}
           disabled={loading}
@@ -222,7 +218,6 @@ export default function ResetPassword() {
         />
         <AgriButton
           title="Back to login"
-          subtitle="Return to sign in without changing more details"
           icon="arrow-left"
           variant="secondary"
           trailingIcon={false}

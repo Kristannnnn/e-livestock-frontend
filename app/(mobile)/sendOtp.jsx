@@ -28,7 +28,7 @@ export default function SendOtp() {
       setNotice({
         tone: "error",
         title: "Email required",
-        message: "Enter the email linked to your account before requesting a recovery code.",
+        message: "Enter your account email.",
       });
       return;
     }
@@ -37,7 +37,7 @@ export default function SendOtp() {
       setNotice({
         tone: "warning",
         title: "Invalid email",
-        message: "Enter a valid email address so we can send the OTP to the right inbox.",
+        message: "Enter a valid email address.",
       });
       return;
     }
@@ -46,7 +46,7 @@ export default function SendOtp() {
     setNotice({
       tone: "info",
       title: "Sending recovery code",
-      message: "We are preparing a one-time password for your account email.",
+      message: "Sending a code to your email.",
     });
 
     try {
@@ -62,7 +62,7 @@ export default function SendOtp() {
         setNotice({
           tone: "success",
           title: "Recovery code sent",
-          message: "Check your inbox and spam folder. We are opening the verification step now.",
+          message: "Check your inbox. Opening the next step.",
         });
         await pause(700);
         router.push({
@@ -91,16 +91,13 @@ export default function SendOtp() {
   return (
     <AuthRecoveryShell
       eyebrow="Forgot password"
-      title="Request your recovery code"
-      subtitle="Enter the email connected to your e-Livestock account and we will send a one-time password so you can continue the reset flow securely."
+      title="Get a recovery code"
+      subtitle="Enter your account email to receive a one-time password."
       step={1}
     >
       <Text style={styles.sectionEyebrow}>Email recovery</Text>
-      <Text style={styles.sectionTitle}>Send OTP to your inbox</Text>
-      <Text style={styles.sectionCopy}>
-        Use the same email address you registered with. Once the code arrives,
-        you can move to the OTP verification step right away.
-      </Text>
+      <Text style={styles.sectionTitle}>Send code</Text>
+      <Text style={styles.sectionCopy}>Use your registered email.</Text>
 
       {notice ? (
         <FeedbackBanner
@@ -120,10 +117,8 @@ export default function SendOtp() {
           />
         </View>
         <View style={styles.infoTextWrap}>
-          <Text style={styles.infoTitle}>Recovery note</Text>
-          <Text style={styles.infoCopy}>
-            The reset code is delivered only to the account email on file.
-          </Text>
+          <Text style={styles.infoTitle}>Email on file</Text>
+          <Text style={styles.infoCopy}>The code is sent only to the saved account email.</Text>
         </View>
       </View>
 
@@ -153,15 +148,12 @@ export default function SendOtp() {
           size={18}
           color={agriPalette.field}
         />
-        <Text style={styles.tipText}>
-          Check both your inbox and spam folder after sending the code.
-        </Text>
+        <Text style={styles.tipText}>Check inbox and spam.</Text>
       </View>
 
       <View style={styles.actionStack}>
         <AgriButton
           title="Send OTP"
-          subtitle="Generate a recovery code for this email"
           icon="send-outline"
           loading={loading}
           disabled={loading}
@@ -169,7 +161,6 @@ export default function SendOtp() {
         />
         <AgriButton
           title="Back to login"
-          subtitle="Return to the sign-in screen"
           icon="arrow-left"
           variant="secondary"
           trailingIcon={false}

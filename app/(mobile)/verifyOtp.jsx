@@ -33,7 +33,7 @@ export default function VerifyOtp() {
       setNotice({
         tone: "error",
         title: "Missing email",
-        message: "Returning to login so you can restart the recovery flow from the beginning.",
+        message: "Returning to login.",
       });
 
       const timeoutId = setTimeout(() => {
@@ -53,7 +53,7 @@ export default function VerifyOtp() {
       setNotice({
         tone: "error",
         title: "OTP required",
-        message: "Enter the 6-digit code sent to your email before continuing.",
+        message: "Enter the 6-digit code.",
       });
       return;
     }
@@ -62,7 +62,7 @@ export default function VerifyOtp() {
     setNotice({
       tone: "info",
       title: "Verifying your code",
-      message: "We are checking the OTP against your account details now.",
+      message: "Checking your code.",
     });
 
     try {
@@ -87,8 +87,8 @@ export default function VerifyOtp() {
         title: "OTP verified",
         message:
           purpose === "register"
-            ? "Your email is confirmed. Returning you to login now."
-            : "Your recovery code is valid. Opening the password reset step now.",
+            ? "Email verified. Returning to login."
+            : "Code accepted. Opening password reset.",
       });
       await pause(700);
 
@@ -113,15 +113,12 @@ export default function VerifyOtp() {
     <AuthRecoveryShell
       eyebrow="OTP verification"
       title="Confirm your recovery code"
-      subtitle="Enter the one-time password sent to your email so we can confirm this recovery request before allowing a password change."
+      subtitle="Enter the one-time password sent to your email."
       step={2}
     >
       <Text style={styles.sectionEyebrow}>Verification</Text>
-      <Text style={styles.sectionTitle}>Check the 6-digit OTP</Text>
-      <Text style={styles.sectionCopy}>
-        We sent a code to the email below. Enter it exactly as received to move
-        to the final reset step.
-      </Text>
+      <Text style={styles.sectionTitle}>Enter the OTP</Text>
+      <Text style={styles.sectionCopy}>Use the 6-digit code from your email.</Text>
 
       {notice ? (
         <FeedbackBanner
@@ -141,7 +138,7 @@ export default function VerifyOtp() {
           />
         </View>
         <View style={styles.emailTextWrap}>
-          <Text style={styles.emailLabel}>Code sent to</Text>
+          <Text style={styles.emailLabel}>Sent to</Text>
           <Text style={styles.emailValue}>{email || "Email not available"}</Text>
         </View>
       </View>
@@ -171,24 +168,19 @@ export default function VerifyOtp() {
           size={18}
           color={agriPalette.wheat}
         />
-        <Text style={styles.tipText}>
-          If the code does not arrive, go back and request another OTP for the
-          same email address.
-        </Text>
+        <Text style={styles.tipText}>No code yet? Go back and request another one.</Text>
       </View>
 
       <View style={styles.actionStack}>
         <AgriButton
           title="Verify OTP"
-          subtitle="Confirm this recovery request"
           icon="check-decagram-outline"
           loading={loading}
           disabled={loading}
           onPress={handleVerifyOtp}
         />
         <AgriButton
-          title="Back to email step"
-          subtitle="Request a different recovery code"
+          title="Back"
           icon="arrow-left"
           variant="secondary"
           trailingIcon={false}

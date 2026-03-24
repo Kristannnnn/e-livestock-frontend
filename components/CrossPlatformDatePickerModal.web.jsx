@@ -132,7 +132,7 @@ export default function CrossPlatformDatePickerModal({
   onConfirm,
   onCancel,
   title = "Choose a date",
-  description = "Pick the day you want to use for this step.",
+  description = "Pick a date.",
   confirmLabel = "Use this date",
 }) {
   const [draftValue, setDraftValue] = useState("");
@@ -213,7 +213,7 @@ export default function CrossPlatformDatePickerModal({
           ) : null}
 
           <View style={styles.fieldBlock}>
-            <Text style={styles.fieldLabel}>Selected day</Text>
+            <Text style={styles.fieldLabel}>Date</Text>
             <View style={styles.inputShell}>
               <input
                 type="date"
@@ -229,7 +229,7 @@ export default function CrossPlatformDatePickerModal({
               />
             </View>
             <Text style={styles.previewText}>
-              {previewLabel || "Pick a day from the browser date control."}
+              {previewLabel || "Pick a day."}
             </Text>
             {errorMessage ? (
               <Text style={styles.errorText}>{errorMessage}</Text>
@@ -242,13 +242,12 @@ export default function CrossPlatformDatePickerModal({
               size={16}
               color={agriPalette.fieldDeep}
             />
-            <Text style={styles.quickActionText}>Use the nearest valid day</Text>
+            <Text style={styles.quickActionText}>Use closest valid day</Text>
           </Pressable>
 
           <View style={styles.actionStack}>
             <AgriButton
               title="Cancel"
-              subtitle="Keep the current date selection"
               icon="close"
               variant="secondary"
               compact
@@ -257,7 +256,6 @@ export default function CrossPlatformDatePickerModal({
             />
             <AgriButton
               title={confirmLabel}
-              subtitle="Apply this date to the current step"
               icon="check-circle-outline"
               variant="primary"
               compact

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -41,7 +42,7 @@ const STATUS_META = {
     chipBackground: "#FBF2D3",
     chipBorder: "#E8D08B",
     chipText: "#7A5A12",
-    description: "Requests waiting for confirmation from the inspector team.",
+    description: "Waiting for review.",
   },
   accepted: {
     label: "Accepted",
@@ -51,7 +52,7 @@ const STATUS_META = {
     chipBackground: "#E1EFE8",
     chipBorder: "#B9D3C6",
     chipText: agriPalette.fieldDeep,
-    description: "Approved visits that are ready for QR verification or field prep.",
+    description: "Ready for field prep.",
   },
   ongoing: {
     label: "Ongoing",
@@ -61,7 +62,7 @@ const STATUS_META = {
     chipBackground: "#E6EEF7",
     chipBorder: "#C4D5EA",
     chipText: "#315E8F",
-    description: "Field visits currently happening and waiting to be completed.",
+    description: "Currently in the field.",
   },
   done: {
     label: "Done",
@@ -71,7 +72,7 @@ const STATUS_META = {
     chipBackground: "#E7F4DF",
     chipBorder: "#C6DFB5",
     chipText: agriPalette.field,
-    description: "Completed inspections that have already been closed out.",
+    description: "Completed visits.",
   },
   cancelled: {
     label: "Cancelled",
@@ -81,7 +82,7 @@ const STATUS_META = {
     chipBackground: "#F6E0D7",
     chipBorder: "#E5B6A4",
     chipText: agriPalette.redClay,
-    description: "Visits removed from the schedule before inspection happened.",
+    description: "Removed from the board.",
   },
 };
 
@@ -162,28 +163,108 @@ function buildStatusSuccessFeedback(schedule, newStatus) {
   switch (newStatus) {
     case "accepted":
       return {
-        title: "Request accepted",
-        message: `${subject} is now confirmed for ${windowLabel}. It has been moved into the accepted queue.`,
+        status: "accepted",
+        title: "Moved to accepted",
+        message: "This visit is confirmed and ready for field prep.",
+        subject,
+        windowLabel,
       };
     case "ongoing":
       return {
-        title: "Inspection started",
-        message: `${subject} is now marked ongoing for ${windowLabel}. You can continue it from the ongoing queue anytime.`,
+        status: "ongoing",
+        title: "Visit started",
+        message: "This inspection is now active in the field.",
+        subject,
+        windowLabel,
       };
     case "done":
       return {
-        title: "Inspection completed",
-        message: `${subject} has been marked done for ${windowLabel}. The visit now appears in the completed queue.`,
+        status: "done",
+        title: "Visit completed",
+        message: "This inspection is now closed.",
+        subject,
+        windowLabel,
       };
     case "cancelled":
       return {
+        status: "cancelled",
         title: "Visit cancelled",
-        message: `${subject} was removed from the schedule for ${windowLabel}.`,
+        message: "This visit was removed from the board.",
+        subject,
+        windowLabel,
       };
     default:
       return {
+        status: "pending",
         title: "Schedule updated",
-        message: `${subject} was updated successfully.`,
+        message: "The visit status was updated.",
+        subject,
+        windowLabel,
+      };
+  }
+}
+
+function getFeedbackAppearance(status) {
+  switch (status) {
+    case "accepted":
+      return {
+        icon: "calendar-check-outline",
+        eyebrow: "Schedule updated",
+        accent: agriPalette.fieldDeep,
+        surface: "#EAF5EE",
+        border: "#B9D3C6",
+        iconSurface: "#DCECE2",
+        pillSurface: "#E1EFE8",
+        pillText: agriPalette.fieldDeep,
+        buttonVariant: "primary",
+      };
+    case "ongoing":
+      return {
+        icon: "tractor-variant",
+        eyebrow: "Field update",
+        accent: "#315E8F",
+        surface: "#EDF3FA",
+        border: "#C4D5EA",
+        iconSurface: "#E2EAF5",
+        pillSurface: "#E6EEF7",
+        pillText: "#315E8F",
+        buttonVariant: "sky",
+      };
+    case "done":
+      return {
+        icon: "check-decagram-outline",
+        eyebrow: "Visit closed",
+        accent: agriPalette.field,
+        surface: "#EEF7E9",
+        border: "#C6DFB5",
+        iconSurface: "#E1F0D8",
+        pillSurface: "#E7F4DF",
+        pillText: agriPalette.field,
+        buttonVariant: "primary",
+      };
+    case "cancelled":
+      return {
+        icon: "close-circle-outline",
+        eyebrow: "Visit removed",
+        accent: agriPalette.redClay,
+        surface: "#F9E8E0",
+        border: "#E5B6A4",
+        iconSurface: "#F5DED5",
+        pillSurface: "#F6E0D7",
+        pillText: agriPalette.redClay,
+        buttonVariant: "danger",
+      };
+    default:
+      return {
+        icon: "check-circle-outline",
+        eyebrow: "Schedule updated",
+        accent: agriPalette.fieldDeep,
+        surface: agriPalette.cream,
+        border: agriPalette.border,
+        iconSurface: "#E7F2EA",
+        pillSurface: agriPalette.mist,
+        pillText: agriPalette.fieldDeep,
+        buttonVariant: "primary",
       };
   }
 }
@@ -240,6 +321,7 @@ export default function AntemortemScheduleScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyScheduleId, setBusyScheduleId] = useState(null);
+  const [feedbackNotice, setFeedbackNotice] = useState(null);
   const requestedStatus = String(getParamValue(params?.status) || "")
     .trim()
     .toLowerCase();
@@ -343,7 +425,7 @@ export default function AntemortemScheduleScreen() {
 
       if (data.status === "success") {
         const feedback = buildStatusSuccessFeedback(schedule, newStatus);
-        Alert.alert(feedback.title, feedback.message);
+        setFeedbackNotice(feedback);
         triggerReload(false);
       } else {
         Alert.alert("Error", data.message || "Failed to update schedule.");
@@ -356,7 +438,9 @@ export default function AntemortemScheduleScreen() {
     }
   };
 
-  const deleteSchedule = async (scheduleId) => {
+  const deleteSchedule = async (schedule) => {
+    const scheduleId = schedule?.schedule_id;
+
     try {
       setBusyScheduleId(scheduleId);
 
@@ -368,7 +452,7 @@ export default function AntemortemScheduleScreen() {
       const data = await response.json();
 
       if (data.status === "success") {
-        Alert.alert("Cancelled", "Schedule cancelled successfully.");
+        setFeedbackNotice(buildStatusSuccessFeedback(schedule, "cancelled"));
         triggerReload(false);
       } else {
         Alert.alert("Error", data.message || "Failed to cancel schedule.");
@@ -381,16 +465,16 @@ export default function AntemortemScheduleScreen() {
     }
   };
 
-  const confirmCancellation = (scheduleId) => {
+  const confirmCancellation = (schedule) => {
     Alert.alert(
       "Cancel schedule",
-      "Are you sure you want to cancel this accepted visit?",
+      "Cancel this accepted visit?",
       [
         { text: "Keep", style: "cancel" },
         {
           text: "Cancel visit",
           style: "destructive",
-          onPress: () => deleteSchedule(scheduleId),
+          onPress: () => deleteSchedule(schedule),
         },
       ]
     );
@@ -403,8 +487,7 @@ export default function AntemortemScheduleScreen() {
       return (
         <View style={styles.actionStack}>
           <AgriButton
-            title="Accept request"
-            subtitle="Confirm this booking and move it into the accepted queue"
+            title="Accept"
             icon="check-decagram-outline"
             variant="primary"
             compact
@@ -414,8 +497,7 @@ export default function AntemortemScheduleScreen() {
             onPress={() => updateScheduleStatus(schedule, "accepted")}
           />
           <AgriButton
-            title="Decline request"
-            subtitle="Reject this booking and remove it from the queue"
+            title="Decline"
             icon="close-circle-outline"
             variant="danger"
             compact
@@ -431,8 +513,7 @@ export default function AntemortemScheduleScreen() {
       return (
         <View style={styles.actionStack}>
           <AgriButton
-            title="Start field visit"
-            subtitle="Mark this booking as active and move it into the field queue"
+            title="Start visit"
             icon="play-circle-outline"
             variant="sky"
             compact
@@ -443,7 +524,6 @@ export default function AntemortemScheduleScreen() {
           />
           <AgriButton
             title="Verify QR"
-            subtitle="Open the QR scanner to confirm this livestock record on-site"
             icon="qrcode-scan"
             variant="secondary"
             compact
@@ -461,13 +541,12 @@ export default function AntemortemScheduleScreen() {
           />
           <AgriButton
             title="Cancel visit"
-            subtitle="Remove this accepted booking from the schedule board"
             icon="calendar-remove-outline"
             variant="danger"
             compact
             trailingIcon={false}
             disabled={Boolean(busyScheduleId)}
-            onPress={() => confirmCancellation(schedule.schedule_id)}
+            onPress={() => confirmCancellation(schedule)}
           />
         </View>
       );
@@ -477,8 +556,7 @@ export default function AntemortemScheduleScreen() {
       return (
         <View style={styles.actionStack}>
           <AgriButton
-            title="Mark inspection done"
-            subtitle="Finish this field visit and move it into the done queue"
+            title="Mark done"
             icon="check-circle-outline"
             variant="primary"
             compact
@@ -494,25 +572,156 @@ export default function AntemortemScheduleScreen() {
     return null;
   };
 
+  const feedbackAppearance = getFeedbackAppearance(feedbackNotice?.status);
+  const feedbackStatusLabel =
+    STATUS_META[feedbackNotice?.status]?.label || "Updated";
+
   return (
     <DashboardShell
       eyebrow="Antemortem schedule board"
       title="Review schedules"
-      subtitle="Use this board to move livestock inspections from review to field work and keep every visit in the right queue."
+      subtitle="Move visits through each schedule stage."
       summary={
         loading
-          ? "Refreshing the antemortem schedule board..."
-          : `${statusCounts.pending} pending, ${statusCounts.accepted} accepted, and ${statusCounts.ongoing} ongoing visits across the inspection queue.`
+          ? "Loading schedule board..."
+          : `${statusCounts.pending} pending, ${statusCounts.accepted} accepted, ${statusCounts.ongoing} ongoing.`
       }
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => triggerReload(true)} />
       }
     >
+      <Modal
+        transparent
+        visible={Boolean(feedbackNotice)}
+        animationType="fade"
+        onRequestClose={() => setFeedbackNotice(null)}
+      >
+        <View style={styles.feedbackOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setFeedbackNotice(null)}
+          />
+          <View style={styles.feedbackTint} />
+
+          <View
+            style={[
+              styles.feedbackCard,
+              {
+                borderColor: feedbackAppearance.border,
+                backgroundColor: agriPalette.surface,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.feedbackAccentBar,
+                { backgroundColor: feedbackAppearance.accent },
+              ]}
+            />
+
+            <View style={styles.feedbackHeader}>
+              <View
+                style={[
+                  styles.feedbackIconWrap,
+                  { backgroundColor: feedbackAppearance.iconSurface },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={feedbackAppearance.icon}
+                  size={28}
+                  color={feedbackAppearance.accent}
+                />
+              </View>
+
+              <View style={styles.feedbackHeaderCopy}>
+                <Text
+                  style={[
+                    styles.feedbackEyebrow,
+                    { color: feedbackAppearance.accent },
+                  ]}
+                >
+                  {feedbackAppearance.eyebrow}
+                </Text>
+                <Text style={styles.feedbackTitle}>
+                  {feedbackNotice?.title || "Schedule updated"}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.feedbackMessage}>
+              {feedbackNotice?.message || "The visit status was updated."}
+            </Text>
+
+            <View
+              style={[
+                styles.feedbackStatusPill,
+                { backgroundColor: feedbackAppearance.pillSurface },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={feedbackAppearance.icon}
+                size={16}
+                color={feedbackAppearance.pillText}
+              />
+              <Text
+                style={[
+                  styles.feedbackStatusText,
+                  { color: feedbackAppearance.pillText },
+                ]}
+              >
+                {feedbackStatusLabel}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.feedbackDetailsCard,
+                {
+                  backgroundColor: feedbackAppearance.surface,
+                  borderColor: feedbackAppearance.border,
+                },
+              ]}
+            >
+              <View style={styles.feedbackDetailRow}>
+                <MaterialCommunityIcons
+                  name="account-outline"
+                  size={16}
+                  color={feedbackAppearance.accent}
+                />
+                <Text style={styles.feedbackDetailText}>
+                  {feedbackNotice?.subject || "Visit details"}
+                </Text>
+              </View>
+
+              <View style={styles.feedbackDetailRow}>
+                <MaterialCommunityIcons
+                  name="calendar-clock-outline"
+                  size={16}
+                  color={feedbackAppearance.accent}
+                />
+                <Text style={styles.feedbackDetailText}>
+                  {feedbackNotice?.windowLabel || "Time not recorded"}
+                </Text>
+              </View>
+            </View>
+
+            <AgriButton
+              title="Continue"
+              icon="check"
+              variant={feedbackAppearance.buttonVariant}
+              compact
+              trailingIcon={false}
+              onPress={() => setFeedbackNotice(null)}
+            />
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.statsGrid}>
         <StatCard
           label="Pending queue"
           value={statusCounts.pending}
-          caption="Requests still waiting for confirmation."
+          caption="Waiting for review."
           icon="clock-outline"
           accent="wheat"
           loading={loading}
@@ -520,7 +729,7 @@ export default function AntemortemScheduleScreen() {
         <StatCard
           label="Active field"
           value={statusCounts.ongoing}
-          caption="Inspections currently moving through the field."
+          caption="In the field."
           icon="tractor-variant"
           accent="sky"
           loading={loading}
@@ -528,7 +737,7 @@ export default function AntemortemScheduleScreen() {
         <StatCard
           label="Closed visits"
           value={closedCount}
-          caption="Completed or cancelled schedules already closed out."
+          caption="Done or cancelled."
           icon="check-decagram-outline"
           accent="meadow"
           loading={loading}
@@ -537,11 +746,8 @@ export default function AntemortemScheduleScreen() {
 
       <View style={styles.surfaceCard}>
         <Text style={styles.cardEyebrow}>Search and filter</Text>
-        <Text style={styles.cardTitle}>Choose the queue you want to work on</Text>
-        <Text style={styles.cardCopy}>
-          Search by owner, eartag, location, or form number, then switch to the
-          inspection stage that needs action next.
-        </Text>
+        <Text style={styles.cardTitle}>Choose a queue</Text>
+        <Text style={styles.cardCopy}>Search then switch status.</Text>
 
         <View style={styles.searchWrap}>
           <MaterialCommunityIcons
@@ -626,13 +832,9 @@ export default function AntemortemScheduleScreen() {
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.cardEyebrow}>Schedule list</Text>
-            <Text style={styles.cardTitle}>
-              {activeMeta.label} visits
-            </Text>
+            <Text style={styles.cardTitle}>{activeMeta.label} visits</Text>
             <Text style={styles.cardCopy}>
-              Review the {activeMeta.label.toLowerCase()} queue below.{" "}
-              {filteredSchedules.length} result
-              {filteredSchedules.length === 1 ? "" : "s"} are visible right now.
+              {filteredSchedules.length} result{filteredSchedules.length === 1 ? "" : "s"}.
             </Text>
           </View>
 
@@ -788,6 +990,106 @@ export default function AntemortemScheduleScreen() {
 }
 
 const styles = StyleSheet.create({
+  feedbackOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  feedbackTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(12, 24, 16, 0.48)",
+  },
+  feedbackCard: {
+    width: "100%",
+    maxWidth: 440,
+    borderRadius: 30,
+    borderWidth: 1,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 18,
+    shadowColor: "#102116",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.22,
+    shadowRadius: 26,
+    elevation: 14,
+    overflow: "hidden",
+  },
+  feedbackAccentBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+  },
+  feedbackHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  feedbackIconWrap: {
+    width: 62,
+    height: 62,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  feedbackHeaderCopy: {
+    flex: 1,
+  },
+  feedbackEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  feedbackTitle: {
+    marginTop: 6,
+    color: agriPalette.ink,
+    fontSize: 28,
+    fontWeight: "900",
+  },
+  feedbackMessage: {
+    marginTop: 16,
+    color: agriPalette.inkSoft,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  feedbackStatusPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  feedbackStatusText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  feedbackDetailsCard: {
+    marginTop: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  feedbackDetailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  feedbackDetailText: {
+    flex: 1,
+    color: agriPalette.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

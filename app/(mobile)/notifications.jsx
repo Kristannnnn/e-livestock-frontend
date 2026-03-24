@@ -346,44 +346,34 @@ function getNotificationActionLabel(item, role) {
   const type = normalizeNotificationType(item?.type);
 
   if (type === "renewal_request") {
-    return role === "livestockInspector"
-      ? "Open renewal queue"
-      : "Open renewal board";
+    return "Renewals";
   }
 
   if (type === "renewal_completed") {
-    return role === "livestockInspector"
-      ? "Open submitted forms"
-      : "Review renewal board";
+    return role === "livestockInspector" ? "Forms" : "Renewals";
   }
 
   if (type === "renewal_cancelled") {
-    return role === "livestockInspector"
-      ? "Review renewal queue"
-      : "Review renewal board";
+    return "Renewals";
   }
 
   if (["schedule_created", "schedule_status", "schedule_cancelled"].includes(type)) {
-    return role === "AntemortemInspector"
-      ? "Open schedule board"
-      : "Open my schedules";
+    return "Schedules";
   }
 
   if (type === "form_batch") {
-    return role === "livestockInspector"
-      ? "Open form records"
-      : "Open stockyard";
+    return role === "livestockInspector" ? "Forms" : "Stockyard";
   }
 
   if (["account_updated", "password_updated"].includes(type)) {
-    return "Open settings";
+    return "Settings";
   }
 
   if (type === "login_success") {
-    return "Open dashboard";
+    return "Dashboard";
   }
 
-  return "Open alert";
+  return "Open";
 }
 
 function buildNotificationReferenceChips(item) {
@@ -470,48 +460,48 @@ function buildEmptyState(activeFilter) {
   if (activeFilter === "unread") {
     return {
       title: "No unread alerts",
-      copy: "You are all caught up. New account, schedule, renewal, and form updates will appear here when they arrive.",
+      copy: "You're all caught up.",
     };
   }
 
   if (activeFilter === "account") {
     return {
       title: "No account alerts",
-      copy: "Successful sign-ins, profile saves, and password changes will appear here for quick account tracking.",
+      copy: "Account updates will appear here.",
     };
   }
 
   if (activeFilter === "renewals") {
     return {
       title: "No renewal alerts",
-      copy: "Renewal requests, completed renewals, and auto-cancelled renewal notices will appear here.",
+      copy: "Renewal updates will appear here.",
     };
   }
 
   if (activeFilter === "schedules") {
     return {
       title: "No schedule alerts",
-      copy: "Booking confirmations, status updates, and cancellations will appear here.",
+      copy: "Schedule updates will appear here.",
     };
   }
 
   if (activeFilter === "forms") {
     return {
       title: "No form alerts",
-      copy: "Batch form submissions and related record activity will show up here.",
+      copy: "Form updates will appear here.",
     };
   }
 
   if (activeFilter === "system") {
     return {
       title: "No system alerts",
-      copy: "General account notifications will appear here when there is something you need to know.",
+      copy: "System updates will appear here.",
     };
   }
 
   return {
     title: "No notifications yet",
-    copy: "New account, form, renewal, and schedule activity will appear here for your account.",
+    copy: "New updates will appear here.",
   };
 }
 
@@ -674,7 +664,7 @@ export default function NotificationsScreen() {
   );
   const summary =
     loading
-      ? "Loading your notifications..."
+      ? "Loading alerts..."
       : activeFilter === "all"
         ? `${categoryCounts.all} alert${categoryCounts.all === 1 ? "" : "s"} total, ${unreadCount} unread.`
         : `${filteredNotifications.length} ${FILTER_LABELS[activeFilter].toLowerCase()} alert${
@@ -686,13 +676,12 @@ export default function NotificationsScreen() {
     <DashboardShell
       eyebrow="Notification center"
       title="Your alerts"
-      subtitle="Use this inbox to review schedule updates, form activity, renewals, and other account events that may need action."
+      subtitle="Review account, renewal, form, and schedule updates."
       summary={summary}
     >
       <View style={styles.actions}>
         <AgriButton
           title="Refresh"
-          subtitle="Reload the newest alerts for this account"
           icon="refresh"
           compact
           onPress={() => refreshNotifications(accountId)}
@@ -700,7 +689,6 @@ export default function NotificationsScreen() {
         />
         <AgriButton
           title="Mark all read"
-          subtitle="Clear unread alerts after you finish reviewing them"
           icon="check-all"
           variant="secondary"
           compact
@@ -788,7 +776,7 @@ export default function NotificationsScreen() {
       ) : null}
 
       <View style={styles.filterRail}>
-        <Text style={styles.filterHeading}>Browse by category</Text>
+        <Text style={styles.filterHeading}>Categories</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}

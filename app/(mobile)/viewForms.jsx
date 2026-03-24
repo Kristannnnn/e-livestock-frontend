@@ -220,17 +220,14 @@ export default function ViewForms() {
   return (
     <DashboardShell
       eyebrow="Submitted records"
-      title="View submitted forms"
-      subtitle="Use this page to search submitted livestock records, narrow the reporting window, and open the exact form details you need."
+      title="Submitted forms"
+      subtitle="Search submitted forms and open details fast."
       summary={`${totalForms} form${totalForms === 1 ? "" : "s"} visible for ${selectedFilterLabel.toLowerCase()}.`}
     >
       <View style={styles.controlCard}>
         <Text style={styles.cardEyebrow}>Search and filter</Text>
-        <Text style={styles.cardTitle}>Find a livestock form quickly</Text>
-        <Text style={styles.cardCopy}>
-          Search by owner, eartag, or form number, then switch the reporting
-          filter to surface the records you need to review next.
-        </Text>
+        <Text style={styles.cardTitle}>Find a form</Text>
+        <Text style={styles.cardCopy}>Search by owner, eartag, or form number.</Text>
 
         <View style={[styles.searchBox, isWide && styles.searchBoxWide]}>
           <MaterialCommunityIcons
@@ -305,10 +302,7 @@ export default function ViewForms() {
             color={agriPalette.field}
           />
           <Text style={styles.emptyTitle}>No forms found</Text>
-          <Text style={styles.emptyText}>
-            Try another filter or search term to reveal the form you need to
-            inspect.
-          </Text>
+          <Text style={styles.emptyText}>Try another search or filter.</Text>
         </View>
       ) : (
         <View style={styles.listContent}>
@@ -419,8 +413,7 @@ function FormCard({ item, onView, isWide, isHighlighted = false }) {
 
       <View style={styles.formActionWrap}>
         <AgriButton
-          title="View details"
-          subtitle="Open QR, expiry, and record data"
+          title="Details"
           icon="file-eye-outline"
           compact
           variant="primary"
