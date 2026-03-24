@@ -348,19 +348,19 @@ function getNotificationActionLabel(item, role) {
   if (type === "renewal_request") {
     return role === "livestockInspector"
       ? "Open renewal queue"
-      : "Open stockyard";
+      : "Open renewal board";
   }
 
   if (type === "renewal_completed") {
     return role === "livestockInspector"
       ? "Open submitted forms"
-      : "Review renewed form";
+      : "Review renewal board";
   }
 
   if (type === "renewal_cancelled") {
     return role === "livestockInspector"
       ? "Review renewal queue"
-      : "Review stockyard";
+      : "Review renewal board";
   }
 
   if (["schedule_created", "schedule_status", "schedule_cancelled"].includes(type)) {
@@ -411,7 +411,10 @@ function buildNotificationDestination(item, role) {
       return { pathname: "/renewalRequests", params };
     }
 
-    return { pathname: "/stockyard", params };
+    return {
+      pathname: "/checkSchedule",
+      params: { ...(params || {}), board: "renewal" },
+    };
   }
 
   if (type === "renewal_completed") {
@@ -419,7 +422,10 @@ function buildNotificationDestination(item, role) {
       return { pathname: "/viewForms", params };
     }
 
-    return { pathname: "/stockyard", params };
+    return {
+      pathname: "/checkSchedule",
+      params: { ...(params || {}), board: "renewal" },
+    };
   }
 
   if (type === "renewal_cancelled") {
@@ -427,7 +433,10 @@ function buildNotificationDestination(item, role) {
       return { pathname: "/renewalRequests", params };
     }
 
-    return { pathname: "/stockyard", params };
+    return {
+      pathname: "/checkSchedule",
+      params: { ...(params || {}), board: "renewal" },
+    };
   }
 
   if (["schedule_created", "schedule_status", "schedule_cancelled"].includes(type)) {

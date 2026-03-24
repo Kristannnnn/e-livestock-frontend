@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Image,
@@ -22,6 +22,7 @@ import {
 } from "react-native-paper";
 import AgriButton from "../components/AgriButton";
 import FeedbackBanner from "../components/FeedbackBanner";
+import StartupLoadingOverlay from "../components/StartupLoadingOverlay";
 import { agriPalette, agriPaperTheme } from "../constants/agriTheme";
 import { apiRoutes, apiUrl } from "../lib/api";
 
@@ -57,6 +58,21 @@ function pause(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getDashboardRouteForRole(role) {
+  switch (role) {
+    case "user":
+      return "/(mobile)/ownerDashboard";
+    case "admin":
+      return "/(admin)/dashboard";
+    case "AntemortemInspector":
+      return "/antemortemDashboard";
+    case "livestockInspector":
+      return "/livestockInspectorDashboard";
+    default:
+      return "";
+  }
+}
+
 export default function Login() {
   return (
     <PaperProvider theme={agriPaperTheme}>
@@ -85,6 +101,8 @@ function LoginScreen() {
   const [secureText, setSecureText] = useState(true);
   const [notice, setNotice] = useState(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [checkingStoredSession, setCheckingStoredSession] = useState(true);
+  const [sessionDestination, setSessionDestination] = useState("");
   const keyboardVisible = keyboardHeight > 0;
   const shouldCenterContent =
     !keyboardVisible && (useSplitLayout || usePortraitMonitorLayout);
@@ -92,6 +110,54 @@ function LoginScreen() {
   useEffect(() => {
     setNotice(buildAuthNotice(getParamValue(params.notice)));
   }, [params.notice]);
+
+  useEffect(() => {
+    let active = true;
+
+    const restoreStoredSession = async () => {
+      try {
+        const [storedToken, storedRole, storedAccountId, storedUser] =
+          await Promise.all([
+            AsyncStorage.getItem("token"),
+            AsyncStorage.getItem("role"),
+            AsyncStorage.getItem("account_id"),
+            AsyncStorage.getItem("user"),
+          ]);
+
+        let parsedUser = null;
+
+        try {
+          parsedUser = storedUser ? JSON.parse(storedUser) : null;
+        } catch (_error) {
+          parsedUser = null;
+        }
+
+        const resolvedRole = storedRole || parsedUser?.account_type || "";
+        const resolvedAccountId =
+          storedAccountId || String(parsedUser?.account_id || "");
+        const destination =
+          storedToken && resolvedRole && resolvedAccountId
+            ? getDashboardRouteForRole(resolvedRole)
+            : "";
+
+        if (active && destination) {
+          setSessionDestination(destination);
+        }
+      } catch (error) {
+        console.error("Session restore error:", error);
+      } finally {
+        if (active) {
+          setCheckingStoredSession(false);
+        }
+      }
+    };
+
+    restoreStoredSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const showEvent =
@@ -232,6 +298,14 @@ function LoginScreen() {
       });
     }
   };
+
+  if (checkingStoredSession) {
+    return <StartupLoadingOverlay />;
+  }
+
+  if (sessionDestination) {
+    return <Redirect href={sessionDestination} />;
+  }
 
   return (
     <LinearGradient

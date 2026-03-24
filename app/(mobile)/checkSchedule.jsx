@@ -15,13 +15,30 @@ import {
 import AgriButton from "../../components/AgriButton";
 import CrossPlatformDatePickerModal from "../../components/CrossPlatformDatePickerModal";
 import DashboardShell from "../../components/DashboardShell";
+import OwnerRenewalBoard from "../../components/OwnerRenewalBoard";
 import StatCard from "../../components/StatCard";
 import { agriPalette } from "../../constants/agriTheme";
 import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
 
 const API_URL = apiUrl(apiRoutes.owner.schedules);
+const RENEWALS_URL = apiUrl(apiRoutes.renewals.list);
+const CANCEL_RENEWAL_URL = apiUrl(apiRoutes.renewals.cancel);
 const statusOptions = ["All", "Pending", "Accepted", "Ongoing", "Done", "Cancelled"];
 const progressSteps = ["Pending", "Accepted", "Ongoing", "Done"];
+const boardOptions = [
+  {
+    key: "inspection",
+    label: "Inspection",
+    meta: "Visits and appointments",
+    icon: "clipboard-text-outline",
+  },
+  {
+    key: "renewal",
+    label: "Renewal",
+    meta: "Expired permit follow-up",
+    icon: "calendar-refresh-outline",
+  },
+];
 
 const statusStyles = {
   Pending: {
@@ -166,6 +183,16 @@ function toScheduleDateKey(dateValue) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeStatusLabel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 function isUpcomingStatus(status) {
   return ["Pending", "Accepted", "Ongoing"].includes(status);
 }
@@ -216,21 +243,55 @@ async function requestSchedules(ownerAccountId) {
   );
 }
 
+async function requestRenewalRequests(ownerAccountId) {
+  const parsedAccountId = Number.parseInt(ownerAccountId || "", 10);
+
+  if (!(parsedAccountId > 0)) {
+    return { status: "success", requests: [] };
+  }
+
+  const response = await fetch(RENEWALS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      scope: "owner",
+      account_id: parsedAccountId,
+      status: "all",
+    }),
+  });
+
+  return parseJsonResponse(
+    response,
+    `Renewal API request failed (HTTP ${response.status}).`
+  );
+}
+
 export default function ScheduleScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const isWide = width >= 920;
+  const requestedBoardMode = String(getRouteParamValue(params?.board) || "")
+    .trim()
+    .toLowerCase();
   const [schedules, setSchedules] = useState([]);
+  const [renewalRequests, setRenewalRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [renewalLoading, setRenewalLoading] = useState(true);
+  const [cancellingRenewalId, setCancellingRenewalId] = useState(0);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [accountId, setAccountId] = useState(null);
+  const [boardMode, setBoardMode] = useState(
+    requestedBoardMode === "renewal" ? "renewal" : "inspection"
+  );
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedDate, setSelectedDate] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const highlightedScheduleId =
     parseInt(getRouteParamValue(params?.schedule_id), 10) || 0;
+  const highlightedRenewalRequestId =
+    parseInt(getRouteParamValue(params?.renewal_request_id), 10) || 0;
   const highlightedFormId =
     parseInt(getRouteParamValue(params?.form_id), 10) || 0;
 
@@ -249,15 +310,25 @@ export default function ScheduleScreen() {
           setAccountId(storedAccountId);
         } else {
           setLoading(false);
+          setRenewalLoading(false);
         }
       } catch (error) {
         console.error(error);
         setLoading(false);
+        setRenewalLoading(false);
       }
     };
 
     loadUserData();
   }, []);
+
+  useEffect(() => {
+    if (requestedBoardMode === "renewal" || requestedBoardMode === "inspection") {
+      setBoardMode(requestedBoardMode);
+      setStatusFilter("All");
+      setSelectedDate("");
+    }
+  }, [requestedBoardMode]);
 
   useEffect(() => {
     if (!accountId) {
@@ -297,6 +368,37 @@ export default function ScheduleScreen() {
   }, [accountId]);
 
   useEffect(() => {
+    if (!accountId) {
+      return;
+    }
+
+    const loadRenewals = async () => {
+      setRenewalLoading(true);
+
+      try {
+        const data = await requestRenewalRequests(accountId);
+        setRenewalRequests(
+          data.status === "success" && Array.isArray(data.requests)
+            ? data.requests
+            : []
+        );
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to fetch renewal requests.");
+        setRenewalRequests([]);
+      }
+
+      setRenewalLoading(false);
+    };
+
+    loadRenewals();
+  }, [accountId]);
+
+  useEffect(() => {
+    if (boardMode !== "inspection") {
+      return;
+    }
+
     if (!highlightedScheduleId && !highlightedFormId) {
       return;
     }
@@ -321,6 +423,7 @@ export default function ScheduleScreen() {
       setSelectedDate(matchedSchedule.date);
     }
   }, [
+    boardMode,
     highlightedFormId,
     highlightedScheduleId,
     schedules,
@@ -359,6 +462,40 @@ export default function ScheduleScreen() {
     }
 
     setLoading(false);
+  };
+
+  const fetchRenewals = async () => {
+    if (!accountId) {
+      return;
+    }
+
+    setRenewalLoading(true);
+
+    try {
+      const data = await requestRenewalRequests(accountId);
+      setRenewalRequests(
+        data.status === "success" && Array.isArray(data.requests)
+          ? data.requests
+          : []
+      );
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Failed to fetch renewal requests.");
+      setRenewalRequests([]);
+    }
+
+    setRenewalLoading(false);
+  };
+
+  const handleBoardModeChange = (nextMode) => {
+    if (nextMode === boardMode) {
+      return;
+    }
+
+    setBoardMode(nextMode);
+    setStatusFilter("All");
+    setSelectedDate("");
+    setShowDatePicker(false);
   };
 
   const cancelSchedule = async (scheduleId) => {
@@ -404,6 +541,73 @@ export default function ScheduleScreen() {
     ]);
   };
 
+  const cancelRenewalRequest = async (request) => {
+    const renewalRequestId = Number(request?.renewal_request_id) || 0;
+    const ownerAccountId = Number.parseInt(accountId || "", 10) || 0;
+
+    if (!(renewalRequestId > 0)) {
+      Alert.alert("Error", "This renewal request could not be cancelled.");
+      return;
+    }
+
+    Alert.alert(
+      "Cancel renewal",
+      "Are you sure you want to cancel this renewal request?",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Cancel renewal",
+          style: "destructive",
+          onPress: async () => {
+            setCancellingRenewalId(renewalRequestId);
+
+            try {
+              const response = await fetch(CANCEL_RENEWAL_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  renewal_request_id: renewalRequestId,
+                  account_id: ownerAccountId,
+                }),
+              });
+
+              const data = await parseJsonResponse(
+                response,
+                `Cancel renewal request failed (HTTP ${response.status}).`
+              );
+
+              if (data.status === "success") {
+                const nextCancelReason =
+                  String(data.cancel_reason || "").trim() || "Cancelled by owner.";
+
+                setRenewalRequests((prev) =>
+                  prev.map((item) =>
+                    Number(item.renewal_request_id) === renewalRequestId
+                      ? {
+                          ...item,
+                          status: "Cancelled",
+                          cancel_reason: nextCancelReason,
+                        }
+                      : item
+                  )
+                );
+
+                Alert.alert("Success", data.message || "Renewal request cancelled successfully.");
+              } else {
+                Alert.alert("Error", data.message || "Failed to cancel renewal request.");
+              }
+            } catch (error) {
+              console.error(error);
+              Alert.alert("Error", "Something went wrong while cancelling this renewal request.");
+            } finally {
+              setCancellingRenewalId(0);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const totalSchedules = schedules.length;
   const upcomingSchedules = schedules.filter((item) => isUpcomingStatus(item.status)).length;
   const doneSchedules = schedules.filter((item) => item.status === "Done").length;
@@ -427,6 +631,7 @@ export default function ScheduleScreen() {
     filteredSchedules.find((item) => isUpcomingStatus(item.status)) ||
     filteredSchedules[0] ||
     null;
+  const activeLoading = boardMode === "inspection" ? loading : renewalLoading;
 
   return (
     <DashboardShell
@@ -438,13 +643,81 @@ export default function ScheduleScreen() {
           ? `${lastName}'s schedule board`
           : "My schedules"
       }
-      subtitle="Use this schedule board to track upcoming inspections, review finished visits, and spot cancellations that need follow-up."
+      subtitle="Switch between your inspection appointments and your permit renewal requests from one owner-friendly board."
       summary={
-        loading
-          ? "Refreshing your appointment board..."
-          : `${upcomingSchedules} active visits, ${doneSchedules} completed, and ${cancelledSchedules} cancelled.`
+        activeLoading
+          ? `Refreshing your ${
+              boardMode === "inspection" ? "inspection board" : "renewal board"
+            }...`
+          : boardMode === "inspection"
+          ? `${upcomingSchedules} active visits, ${doneSchedules} completed, and ${cancelledSchedules} cancelled.`
+          : `${renewalRequests.filter((item) => normalizeStatusLabel(item.status) === "Pending").length} pending renewals, ${
+              renewalRequests.filter((item) => normalizeStatusLabel(item.status) === "Completed").length
+            } completed, and ${
+              renewalRequests.filter((item) => normalizeStatusLabel(item.status) === "Cancelled").length
+            } cancelled.`
       }
     >
+      <View style={styles.surfaceCard}>
+        <Text style={styles.cardEyebrow}>Board type</Text>
+        <Text style={styles.cardTitle}>Switch between inspections and renewals</Text>
+        <Text style={styles.cardCopy}>
+          Use one board for upcoming inspection visits and expired permit
+          renewals without leaving the owner schedule page.
+        </Text>
+
+        <View style={styles.boardSwitchRow}>
+          {boardOptions.map((option) => {
+            const active = option.key === boardMode;
+
+            return (
+              <Pressable
+                key={option.key}
+                onPress={() => handleBoardModeChange(option.key)}
+                style={[
+                  styles.boardSwitchButton,
+                  active && styles.boardSwitchButtonActive,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.boardSwitchIconWrap,
+                    active && styles.boardSwitchIconWrapActive,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={option.icon}
+                    size={20}
+                    color={active ? agriPalette.white : agriPalette.fieldDeep}
+                  />
+                </View>
+
+                <View style={styles.boardSwitchTextWrap}>
+                  <Text
+                    style={[
+                      styles.boardSwitchLabel,
+                      active && styles.boardSwitchLabelActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.boardSwitchMeta,
+                      active && styles.boardSwitchMetaActive,
+                    ]}
+                  >
+                    {option.meta}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {boardMode === "inspection" ? (
+      <>
       <View style={styles.statsGrid}>
         <StatCard label="All schedules" value={totalSchedules} caption="All linked appointments." icon="calendar-month-outline" accent="meadow" loading={loading} />
         <StatCard label="Upcoming" value={upcomingSchedules} caption="Pending, accepted, and ongoing." icon="calendar-clock-outline" accent="wheat" loading={loading} />
@@ -771,13 +1044,41 @@ export default function ScheduleScreen() {
           </View>
         )}
       </View>
+      </>
+      ) : (
+        <OwnerRenewalBoard
+          requests={renewalRequests}
+          loading={renewalLoading}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          onOpenDatePicker={() => setShowDatePicker(true)}
+          onRefresh={fetchRenewals}
+          onOpenStockyard={() => router.push("/stockyard")}
+          onCancelRenewal={cancelRenewalRequest}
+          cancellingRenewalId={cancellingRenewalId}
+          highlightedFormId={highlightedFormId}
+          highlightedRenewalRequestId={highlightedRenewalRequestId}
+        />
+      )}
 
       <CrossPlatformDatePickerModal
         visible={showDatePicker}
         value={selectedDate ? new Date(`${selectedDate}T12:00:00`) : new Date()}
-        title="Choose a schedule date"
-        description="Filter the schedule board to one inspection day, then review every visit linked to it."
-        confirmLabel="Filter this day"
+        title={
+          boardMode === "inspection"
+            ? "Choose a schedule date"
+            : "Choose a renewal date"
+        }
+        description={
+          boardMode === "inspection"
+            ? "Filter the schedule board to one inspection day, then review every visit linked to it."
+            : "Filter the renewal board to one requested day, then review every expired permit booked for it."
+        }
+        confirmLabel={
+          boardMode === "inspection" ? "Filter this day" : "Filter this renewal day"
+        }
         onConfirm={(pickedDate) => {
           setShowDatePicker(false);
           setSelectedDate(toScheduleDateKey(pickedDate));
@@ -802,6 +1103,62 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 18,
     elevation: 3,
+  },
+  boardSwitchRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 18,
+  },
+  boardSwitchButton: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minWidth: 220,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: agriPalette.cream,
+    borderWidth: 1,
+    borderColor: agriPalette.border,
+  },
+  boardSwitchButtonActive: {
+    backgroundColor: agriPalette.field,
+    borderColor: agriPalette.fieldDeep,
+  },
+  boardSwitchIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(31,77,46,0.08)",
+  },
+  boardSwitchIconWrapActive: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  boardSwitchTextWrap: {
+    flex: 1,
+  },
+  boardSwitchLabel: {
+    color: agriPalette.fieldDeep,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  boardSwitchLabelActive: {
+    color: agriPalette.white,
+  },
+  boardSwitchMeta: {
+    marginTop: 2,
+    color: agriPalette.inkSoft,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  boardSwitchMetaActive: {
+    color: "rgba(255,255,255,0.82)",
   },
   boardRow: { gap: 18 },
   boardRowWide: { flexDirection: "row" },
