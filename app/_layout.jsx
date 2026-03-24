@@ -5,7 +5,11 @@ import {
   addNotificationResponseListenerAsync,
   configureDeviceNotificationsAsync,
 } from "../lib/notifications/deviceNotifications";
+import AppAlertHost from "../components/AppAlertHost";
 import StartupLoadingOverlay from "../components/StartupLoadingOverlay";
+import { installAppAlertOverride } from "../lib/appAlert";
+
+installAppAlertOverride();
 
 const MIN_STARTUP_LOADING_MS = 950;
 
@@ -77,6 +81,7 @@ export default function RootLayout() {
   return (
     <View style={styles.root}>
       <Slot />
+      <AppAlertHost />
       {!appReady ? <StartupLoadingOverlay /> : null}
     </View>
   );

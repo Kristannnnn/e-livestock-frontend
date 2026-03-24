@@ -131,7 +131,7 @@ export default function DashboardScreen() {
         <StatCard
           label="Scheduled"
           value={analytics.scheduled}
-          caption="Upcoming visits."
+          caption="Upcoming inspections."
           icon="calendar-check-outline"
           accent="wheat"
           loading={loading}

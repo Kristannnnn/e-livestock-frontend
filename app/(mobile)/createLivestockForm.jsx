@@ -147,11 +147,70 @@ function hasDraftValues(animalDraft) {
   );
 }
 
-function isHighSeverityResult(result) {
-  const severityLabel = String(result?.severity_label || "").trim().toLowerCase();
+function getSeverityRating(result) {
   const severityRating = Number(result?.severity_rating);
 
-  return severityLabel === "severe" || severityRating >= 5;
+  if (Number.isFinite(severityRating)) {
+    return severityRating;
+  }
+
+  const severityLabel = String(result?.severity_label || "").trim().toLowerCase();
+
+  if (!severityLabel) {
+    return null;
+  }
+
+  if (!Number.isNaN(Number(severityLabel))) {
+    return Number(severityLabel);
+  }
+
+  switch (severityLabel) {
+    case "none":
+    case "clear":
+    case "clear to proceed":
+    case "normal":
+    case "healthy":
+      return 0;
+    case "mild":
+    case "low":
+      return 2;
+    case "moderate":
+    case "medium":
+      return 3;
+    case "severe":
+    case "high":
+    case "critical":
+    case "urgent":
+      return 5;
+    default:
+      return null;
+  }
+}
+
+function isHighSeverityResult(result) {
+  const severityLabel = String(result?.severity_label || "").trim().toLowerCase();
+  const severityRating = getSeverityRating(result);
+
+  if (
+    severityLabel === "none" ||
+    severityLabel === "clear" ||
+    severityLabel === "clear to proceed" ||
+    severityLabel === "normal" ||
+    severityLabel === "healthy"
+  ) {
+    return false;
+  }
+
+  if (severityRating !== null) {
+    return severityRating >= 5;
+  }
+
+  return (
+    severityLabel === "severe" ||
+    severityLabel === "high" ||
+    severityLabel === "critical" ||
+    severityLabel === "urgent"
+  );
 }
 
 function removeErrorKey(errors, key) {
@@ -621,6 +680,16 @@ export default function AddLivestockForm() {
   const reviewedCount = savedAnimals.filter((animal) => animal.dssChecked).length;
   const urgentCount = savedAnimals.filter((animal) => animal.urgent).length;
   const isRenewalMode = Boolean(renewalContext?.renewal_request_id);
+  const renewalAnimalDraftErrors = isRenewalMode
+    ? validateAnimalFields(animalDraft, queuedAnimals, editingId)
+    : {};
+  const hasRenewalAnimalDraftValues =
+    isRenewalMode && hasDraftValues(animalDraft);
+  const isRenewalAnimalReady =
+    isRenewalMode &&
+    hasRenewalAnimalDraftValues &&
+    !hasValidationErrors(renewalAnimalDraftErrors);
+  const renewalSaveDisabled = isRenewalMode && !isRenewalAnimalReady;
 
   const updateBatchData = (key, value) => {
     setBatchData((prev) => ({ ...prev, [key]: value }));
@@ -1553,13 +1622,23 @@ export default function AddLivestockForm() {
               }
               subtitle={
                 isRenewalMode
-                  ? "Renewals reuse one animal record at a time"
+                  ? renewalSaveDisabled
+                    ? "Fill all animal fields before saving"
+                    : "Renewal animal is ready to save"
                   : "Keep DSS linked to this animal by saving its own remarks"
               }
               icon="plus-circle-outline"
               compact
+              disabled={renewalSaveDisabled}
               onPress={queueAnimal}
             />
+            {isRenewalMode && renewalSaveDisabled ? (
+              <Text style={styles.helper}>
+                {hasRenewalAnimalDraftValues
+                  ? "Complete every animal field with valid data first."
+                  : "Edit the queued animal or enter all animal fields first."}
+              </Text>
+            ) : null}
             {editingId ? (
               <TouchableOpacity onPress={resetAnimalDraft}>
                 <Text style={styles.linkText}>Cancel edit</Text>

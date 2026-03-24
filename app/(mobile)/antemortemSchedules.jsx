@@ -72,7 +72,7 @@ const STATUS_META = {
     chipBackground: "#E7F4DF",
     chipBorder: "#C6DFB5",
     chipText: agriPalette.field,
-    description: "Completed visits.",
+    description: "Completed inspections.",
   },
   cancelled: {
     label: "Cancelled",
@@ -153,7 +153,7 @@ function formatScheduleSubject(schedule) {
     return `Eartag ${eartagLabel}`;
   }
 
-  return "This livestock visit";
+  return "This livestock inspection";
 }
 
 function buildStatusSuccessFeedback(schedule, newStatus) {
@@ -165,14 +165,14 @@ function buildStatusSuccessFeedback(schedule, newStatus) {
       return {
         status: "accepted",
         title: "Moved to accepted",
-        message: "This visit is confirmed and ready for field prep.",
+        message: "This inspection is confirmed and ready for field prep.",
         subject,
         windowLabel,
       };
     case "ongoing":
       return {
         status: "ongoing",
-        title: "Visit started",
+        title: "Inspection started",
         message: "This inspection is now active in the field.",
         subject,
         windowLabel,
@@ -180,7 +180,7 @@ function buildStatusSuccessFeedback(schedule, newStatus) {
     case "done":
       return {
         status: "done",
-        title: "Visit completed",
+        title: "Inspection completed",
         message: "This inspection is now closed.",
         subject,
         windowLabel,
@@ -188,8 +188,8 @@ function buildStatusSuccessFeedback(schedule, newStatus) {
     case "cancelled":
       return {
         status: "cancelled",
-        title: "Visit cancelled",
-        message: "This visit was removed from the board.",
+        title: "Inspection cancelled",
+        message: "This inspection was removed from the board.",
         subject,
         windowLabel,
       };
@@ -197,7 +197,7 @@ function buildStatusSuccessFeedback(schedule, newStatus) {
       return {
         status: "pending",
         title: "Schedule updated",
-        message: "The visit status was updated.",
+        message: "The inspection status was updated.",
         subject,
         windowLabel,
       };
@@ -233,7 +233,7 @@ function getFeedbackAppearance(status) {
     case "done":
       return {
         icon: "check-decagram-outline",
-        eyebrow: "Visit closed",
+        eyebrow: "Inspection closed",
         accent: agriPalette.field,
         surface: "#EEF7E9",
         border: "#C6DFB5",
@@ -245,7 +245,7 @@ function getFeedbackAppearance(status) {
     case "cancelled":
       return {
         icon: "close-circle-outline",
-        eyebrow: "Visit removed",
+        eyebrow: "Inspection removed",
         accent: agriPalette.redClay,
         surface: "#F9E8E0",
         border: "#E5B6A4",
@@ -468,11 +468,11 @@ export default function AntemortemScheduleScreen() {
   const confirmCancellation = (schedule) => {
     Alert.alert(
       "Cancel schedule",
-      "Cancel this accepted visit?",
+      "Cancel this accepted inspection?",
       [
         { text: "Keep", style: "cancel" },
         {
-          text: "Cancel visit",
+          text: "Cancel inspection",
           style: "destructive",
           onPress: () => deleteSchedule(schedule),
         },
@@ -513,7 +513,7 @@ export default function AntemortemScheduleScreen() {
       return (
         <View style={styles.actionStack}>
           <AgriButton
-            title="Start visit"
+            title="Start inspection"
             icon="play-circle-outline"
             variant="sky"
             compact
@@ -540,7 +540,7 @@ export default function AntemortemScheduleScreen() {
             }
           />
           <AgriButton
-            title="Cancel visit"
+            title="Cancel inspection"
             icon="calendar-remove-outline"
             variant="danger"
             compact
@@ -580,7 +580,7 @@ export default function AntemortemScheduleScreen() {
     <DashboardShell
       eyebrow="Antemortem schedule board"
       title="Review schedules"
-      subtitle="Move visits through each schedule stage."
+      subtitle="Move inspections through each schedule stage."
       summary={
         loading
           ? "Loading schedule board..."
@@ -649,7 +649,7 @@ export default function AntemortemScheduleScreen() {
             </View>
 
             <Text style={styles.feedbackMessage}>
-              {feedbackNotice?.message || "The visit status was updated."}
+              {feedbackNotice?.message || "The inspection status was updated."}
             </Text>
 
             <View
@@ -689,7 +689,7 @@ export default function AntemortemScheduleScreen() {
                   color={feedbackAppearance.accent}
                 />
                 <Text style={styles.feedbackDetailText}>
-                  {feedbackNotice?.subject || "Visit details"}
+                  {feedbackNotice?.subject || "Inspection details"}
                 </Text>
               </View>
 
@@ -735,7 +735,7 @@ export default function AntemortemScheduleScreen() {
           loading={loading}
         />
         <StatCard
-          label="Closed visits"
+          label="Closed inspections"
           value={closedCount}
           caption="Done or cancelled."
           icon="check-decagram-outline"
@@ -832,7 +832,7 @@ export default function AntemortemScheduleScreen() {
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.cardEyebrow}>Schedule list</Text>
-            <Text style={styles.cardTitle}>{activeMeta.label} visits</Text>
+            <Text style={styles.cardTitle}>{activeMeta.label} inspections</Text>
             <Text style={styles.cardCopy}>
               {filteredSchedules.length} result{filteredSchedules.length === 1 ? "" : "s"}.
             </Text>
@@ -976,7 +976,7 @@ export default function AntemortemScheduleScreen() {
               color={agriPalette.field}
             />
             <Text style={styles.emptyTitle}>
-              No {activeMeta.label.toLowerCase()} visits found
+              No {activeMeta.label.toLowerCase()} inspections found
             </Text>
             <Text style={styles.emptyCopy}>
               Try a different search term or refresh the schedule board to check

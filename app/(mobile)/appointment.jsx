@@ -1,5 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -186,7 +186,7 @@ function buildBookingSuccessNotice({
     return {
       status: "accepted",
       title: "Booking confirmed",
-      message: "Your visit was accepted and added to the schedule.",
+      message: "Your inspection was accepted and added to the schedule.",
       ownerName,
       eartagNumber,
       location,
@@ -198,7 +198,7 @@ function buildBookingSuccessNotice({
   return {
     status: "pending",
     title: "Booking submitted",
-    message: "Your visit was saved and is waiting for review.",
+    message: "Your inspection was saved and is waiting for review.",
     ownerName,
     eartagNumber,
     location,
@@ -464,7 +464,7 @@ export default function Appointment() {
   return (
     <DashboardShell
       eyebrow="Appointment booking"
-      title={ownerName ? `Book a visit for ${ownerName}` : "Schedule an inspection visit"}
+      title={ownerName ? `Book an inspection for ${ownerName}` : "Schedule an inspection"}
       subtitle="Pick a day and slot for this permit."
       summary={
         formId
@@ -655,7 +655,7 @@ export default function Appointment() {
                   <Text style={styles.slotHint}>
                     {index === 0
                       ? "Earliest open slot."
-                      : "Tap to book."}
+                      : "Tap to schedule."}
                   </Text>
                 </Pressable>
               );
@@ -668,7 +668,7 @@ export default function Appointment() {
               size={36}
               color={agriPalette.field}
             />
-            <Text style={styles.emptyTitle}>No open visits on this day</Text>
+            <Text style={styles.emptyTitle}>No open inspections on this day</Text>
             <Text style={styles.emptyCopy}>
               Try another day before{" "}
               {parsedExpirationDate
@@ -728,7 +728,7 @@ export default function Appointment() {
           <View style={styles.modalTint} />
           <View style={styles.modalBox}>
             <Text style={styles.modalEyebrow}>Confirm booking</Text>
-            <Text style={styles.modalTitle}>Book this visit?</Text>
+            <Text style={styles.modalTitle}>Book this inspection?</Text>
             <Text style={styles.modalCopy}>This will be added to your schedule.</Text>
 
             <View style={styles.modalSummary}>
@@ -832,7 +832,7 @@ export default function Appointment() {
             </View>
 
             <Text style={styles.successCopy}>
-              {successNotice?.message || "Your visit was added to the schedule."}
+              {successNotice?.message || "Your inspection was added to the schedule."}
             </Text>
 
             <View

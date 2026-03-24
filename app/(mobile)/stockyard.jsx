@@ -614,7 +614,7 @@ export default function Stockyard() {
         <View style={styles.surfaceCard}>
           <Text style={styles.cardEyebrow}>Permit list</Text>
           <Text style={styles.cardTitle}>Your permits</Text>
-          <Text style={styles.cardCopy}>Open details, book a visit, or request renewal.</Text>
+          <Text style={styles.cardCopy}>Open details, book an inspection, or request renewal.</Text>
 
           {!!loadError && !loading && (
             <View style={styles.errorPanel}>
@@ -658,7 +658,7 @@ export default function Stockyard() {
                       : renewalCancelled
                         ? "Renew again"
                         : "Request renewal"
-                  : "Book visit";
+                  : "Schedule inspection";
                 const renewalButtonSubtitle = null;
                 const renewalButtonIcon = expired
                   ? renewalPending

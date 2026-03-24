@@ -1,5 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -27,7 +27,7 @@ const boardOptions = [
   {
     key: "inspection",
     label: "Inspection",
-    meta: "Visits",
+    meta: "Schedule",
     icon: "clipboard-text-outline",
   },
   {
