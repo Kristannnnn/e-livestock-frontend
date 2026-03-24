@@ -1,12 +1,21 @@
 import { Slot, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
 import {
   addNotificationResponseListenerAsync,
   configureDeviceNotificationsAsync,
 } from "../lib/notifications/deviceNotifications";
+import StartupLoadingOverlay from "../components/StartupLoadingOverlay";
+
+const MIN_STARTUP_LOADING_MS = 950;
+
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export default function RootLayout() {
   const router = useRouter();
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -33,15 +42,28 @@ export default function RootLayout() {
     let responseSubscription = null;
 
     const bootstrapNotifications = async () => {
-      await configureDeviceNotificationsAsync();
+      const startedAt = Date.now();
 
-      if (!mounted) {
-        return;
+      try {
+        await configureDeviceNotificationsAsync();
+
+        if (!mounted) {
+          return;
+        }
+
+        responseSubscription = await addNotificationResponseListenerAsync(() => {
+          router.push("/notifications");
+        });
+      } catch (error) {
+        console.error("Startup bootstrap error:", error);
+      } finally {
+        const elapsed = Date.now() - startedAt;
+        await pause(Math.max(0, MIN_STARTUP_LOADING_MS - elapsed));
+
+        if (mounted) {
+          setAppReady(true);
+        }
       }
-
-      responseSubscription = await addNotificationResponseListenerAsync(() => {
-        router.push("/notifications");
-      });
     };
 
     bootstrapNotifications();
@@ -52,5 +74,16 @@ export default function RootLayout() {
     };
   }, [router]);
 
-  return <Slot />;
+  return (
+    <View style={styles.root}>
+      <Slot />
+      {!appReady ? <StartupLoadingOverlay /> : null}
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

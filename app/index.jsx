@@ -74,6 +74,11 @@ function LoginScreen() {
   const useSplitLayout = width >= 1180 || (width >= 1040 && width > height);
   const isCompact = width < 560;
   const isTallPortrait = height > width && height >= 980;
+  const usePortraitMonitorLayout =
+    Platform.OS === "web" &&
+    !useSplitLayout &&
+    width >= 900 &&
+    height >= width * 1.35;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,6 +86,8 @@ function LoginScreen() {
   const [notice, setNotice] = useState(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const keyboardVisible = keyboardHeight > 0;
+  const shouldCenterContent =
+    !keyboardVisible && (useSplitLayout || usePortraitMonitorLayout);
 
   useEffect(() => {
     setNotice(buildAuthNotice(getParamValue(params.notice)));
@@ -249,11 +256,17 @@ function LoginScreen() {
             styles.scrollContent,
             keyboardVisible && styles.scrollContentKeyboardOpen,
             {
-              justifyContent: useSplitLayout ? "center" : "flex-start",
-              paddingTop: useSplitLayout ? 28 : isCompact ? 18 : isTallPortrait ? 34 : 24,
+              justifyContent: shouldCenterContent ? "center" : "flex-start",
+              paddingTop: shouldCenterContent
+                ? 28
+                : isCompact
+                  ? 18
+                  : isTallPortrait
+                    ? 34
+                    : 24,
               paddingBottom: keyboardVisible
                 ? keyboardHeight + 36
-                : useSplitLayout
+                : shouldCenterContent
                   ? 28
                   : isCompact
                     ? 24
@@ -264,12 +277,28 @@ function LoginScreen() {
           <View
             style={[
               styles.page,
+              usePortraitMonitorLayout && styles.pagePortraitMonitor,
               {
                 flexDirection: useSplitLayout ? "row" : "column",
-                alignItems: useSplitLayout ? "center" : "stretch",
-                gap: useSplitLayout ? 40 : isCompact ? 24 : 30,
+                alignItems:
+                  useSplitLayout || usePortraitMonitorLayout
+                    ? "center"
+                    : "stretch",
+                gap: useSplitLayout
+                  ? 40
+                  : usePortraitMonitorLayout
+                    ? 24
+                    : isCompact
+                      ? 24
+                      : 30,
                 paddingHorizontal: isCompact ? 16 : 20,
-                paddingVertical: isCompact ? 16 : useSplitLayout ? 30 : 20,
+                paddingVertical: isCompact
+                  ? 16
+                  : useSplitLayout
+                    ? 30
+                    : usePortraitMonitorLayout
+                      ? 24
+                      : 20,
               },
             ]}
           >
@@ -277,23 +306,52 @@ function LoginScreen() {
               style={[
                 styles.heroColumn,
                 useSplitLayout ? styles.heroColumnWide : styles.heroColumnStacked,
+                usePortraitMonitorLayout && styles.heroColumnPortraitMonitor,
               ]}
             >
-              <View style={styles.brandRow}>
+              <View
+                style={[
+                  styles.brandRow,
+                  usePortraitMonitorLayout && styles.brandRowPortraitMonitor,
+                ]}
+              >
                 <Image
                   source={require("../assets/logo.png")}
                   resizeMode="contain"
                   style={[styles.logo, isCompact && styles.logoCompact]}
                 />
-                <View style={styles.brandTextWrap}>
-                  <Text style={styles.eyebrow}>Municipal Agriculture Office</Text>
-                  <Text style={[styles.logoText, isCompact && styles.logoTextCompact]}>
+                <View
+                  style={[
+                    styles.brandTextWrap,
+                    usePortraitMonitorLayout && styles.brandTextWrapPortraitMonitor,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.eyebrow,
+                      usePortraitMonitorLayout && styles.centeredHeroText,
+                    ]}
+                  >
+                    Municipal Agriculture Office
+                  </Text>
+                  <Text
+                    style={[
+                      styles.logoText,
+                      isCompact && styles.logoTextCompact,
+                      usePortraitMonitorLayout && styles.centeredHeroText,
+                    ]}
+                  >
                     e-Livestock services for Sipocot
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.heroPill}>
+              <View
+                style={[
+                  styles.heroPill,
+                  usePortraitMonitorLayout && styles.heroPillCentered,
+                ]}
+              >
                 <MaterialCommunityIcons
                   name="sprout"
                   size={18}
@@ -304,17 +362,32 @@ function LoginScreen() {
                 </Text>
               </View>
 
-              <Text style={[styles.heroTitle, isCompact && styles.heroTitleCompact]}>
+              <Text
+                style={[
+                  styles.heroTitle,
+                  isCompact && styles.heroTitleCompact,
+                  usePortraitMonitorLayout && styles.centeredHeroText,
+                ]}
+              >
                 Modern field access for permits, schedules, and inspections.
               </Text>
               <Text
-                style={[styles.heroSubtitle, isCompact && styles.heroSubtitleCompact]}
+                style={[
+                  styles.heroSubtitle,
+                  isCompact && styles.heroSubtitleCompact,
+                  usePortraitMonitorLayout && styles.centeredHeroText,
+                ]}
               >
                 Sign in to manage livestock documents with a cleaner,
                 agriculture-led dashboard experience.
               </Text>
 
-              <View style={styles.heroChipRow}>
+              <View
+                style={[
+                  styles.heroChipRow,
+                  usePortraitMonitorLayout && styles.heroChipRowCentered,
+                ]}
+              >
                 <InfoChip label="Permit tracking" />
                 <InfoChip label="Inspection status" />
                 <InfoChip label="QR-ready records" />
@@ -326,6 +399,7 @@ function LoginScreen() {
                 styles.card,
                 isCompact && styles.cardCompact,
                 !useSplitLayout && styles.cardStacked,
+                usePortraitMonitorLayout && styles.cardPortraitMonitor,
                 { backgroundColor: colors.surface },
               ]}
             >
@@ -465,6 +539,9 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     justifyContent: "center",
   },
+  pagePortraitMonitor: {
+    maxWidth: 860,
+  },
   heroColumn: {
     width: "100%",
     minWidth: 0,
@@ -479,10 +556,19 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     maxWidth: 760,
   },
+  heroColumnPortraitMonitor: {
+    maxWidth: 760,
+    alignItems: "center",
+  },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
+  },
+  brandRowPortraitMonitor: {
+    width: "auto",
+    maxWidth: "100%",
+    justifyContent: "center",
   },
   logo: {
     width: 84,
@@ -497,6 +583,13 @@ const styles = StyleSheet.create({
   brandTextWrap: {
     flex: 1,
     minWidth: 0,
+  },
+  brandTextWrapPortraitMonitor: {
+    flex: 0,
+    maxWidth: 540,
+  },
+  centeredHeroText: {
+    textAlign: "center",
   },
   eyebrow: {
     color: "rgba(255,244,214,0.86)",
@@ -527,6 +620,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  heroPillCentered: {
+    alignSelf: "center",
   },
   heroPillText: {
     marginLeft: 8,
@@ -561,6 +657,9 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
     marginTop: 22,
+  },
+  heroChipRowCentered: {
+    justifyContent: "center",
   },
   infoChip: {
     borderRadius: 999,
@@ -605,6 +704,9 @@ const styles = StyleSheet.create({
   cardStacked: {
     width: "100%",
     maxWidth: 520,
+  },
+  cardPortraitMonitor: {
+    maxWidth: 540,
   },
   cardEyebrow: {
     color: agriPalette.field,
