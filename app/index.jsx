@@ -87,14 +87,21 @@ function LoginScreen() {
   const { colors } = useTheme();
   const { width, height } = useWindowDimensions();
   const scrollViewRef = useRef(null);
-  const useSplitLayout = width >= 1180 || (width >= 1040 && width > height);
+  const isLandscape = width > height;
   const isCompact = width < 560;
+  const isTabletWidth = width >= 720;
   const isTallPortrait = height > width && height >= 980;
+  const isShortScreen = height < 760;
+  const isShortLandscape = isLandscape && height < 560;
+  const useSplitLayout =
+    width >= 1180 || (width >= 900 && isLandscape && height >= 560);
   const usePortraitMonitorLayout =
     Platform.OS === "web" &&
     !useSplitLayout &&
     width >= 900 &&
-    height >= width * 1.35;
+    height >= width * 1.28;
+  const useWideStackedLayout =
+    !useSplitLayout && !usePortraitMonitorLayout && isTabletWidth;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -105,7 +112,10 @@ function LoginScreen() {
   const [sessionDestination, setSessionDestination] = useState("");
   const keyboardVisible = keyboardHeight > 0;
   const shouldCenterContent =
-    !keyboardVisible && (useSplitLayout || usePortraitMonitorLayout);
+    !keyboardVisible &&
+    (useSplitLayout ||
+      usePortraitMonitorLayout ||
+      (useWideStackedLayout && !isShortScreen));
 
   useEffect(() => {
     setNotice(buildAuthNotice(getParamValue(params.notice)));
@@ -329,8 +339,8 @@ function LoginScreen() {
           contentContainerStyle={[
             styles.scrollContent,
             keyboardVisible && styles.scrollContentKeyboardOpen,
+            shouldCenterContent && styles.scrollContentCentered,
             {
-              justifyContent: shouldCenterContent ? "center" : "flex-start",
               paddingTop: shouldCenterContent
                 ? 28
                 : isCompact
@@ -352,6 +362,8 @@ function LoginScreen() {
             style={[
               styles.page,
               usePortraitMonitorLayout && styles.pagePortraitMonitor,
+              useWideStackedLayout && styles.pageWideStacked,
+              isShortLandscape && styles.pageShortLandscape,
               {
                 flexDirection: useSplitLayout ? "row" : "column",
                 alignItems:
@@ -362,6 +374,8 @@ function LoginScreen() {
                   ? 40
                   : usePortraitMonitorLayout
                     ? 24
+                    : isShortLandscape
+                      ? 20
                     : isCompact
                       ? 24
                       : 30,
@@ -372,6 +386,8 @@ function LoginScreen() {
                     ? 30
                     : usePortraitMonitorLayout
                       ? 24
+                      : isShortLandscape
+                        ? 16
                       : 20,
               },
             ]}
@@ -380,7 +396,9 @@ function LoginScreen() {
               style={[
                 styles.heroColumn,
                 useSplitLayout ? styles.heroColumnWide : styles.heroColumnStacked,
+                useWideStackedLayout && styles.heroColumnWideStacked,
                 usePortraitMonitorLayout && styles.heroColumnPortraitMonitor,
+                isShortLandscape && styles.heroColumnShortLandscape,
               ]}
             >
               <View
@@ -392,7 +410,11 @@ function LoginScreen() {
                 <Image
                   source={require("../assets/logo.png")}
                   resizeMode="contain"
-                  style={[styles.logo, isCompact && styles.logoCompact]}
+                  style={[
+                    styles.logo,
+                    isCompact && styles.logoCompact,
+                    isShortLandscape && styles.logoShortLandscape,
+                  ]}
                 />
                 <View
                   style={[
@@ -412,6 +434,7 @@ function LoginScreen() {
                     style={[
                       styles.logoText,
                       isCompact && styles.logoTextCompact,
+                      isShortLandscape && styles.logoTextShortLandscape,
                       usePortraitMonitorLayout && styles.centeredHeroText,
                     ]}
                   >
@@ -424,6 +447,7 @@ function LoginScreen() {
                 style={[
                   styles.heroPill,
                   usePortraitMonitorLayout && styles.heroPillCentered,
+                  isShortLandscape && styles.heroPillShortLandscape,
                 ]}
               >
                 <MaterialCommunityIcons
@@ -440,6 +464,7 @@ function LoginScreen() {
                 style={[
                   styles.heroTitle,
                   isCompact && styles.heroTitleCompact,
+                  isShortLandscape && styles.heroTitleShortLandscape,
                   usePortraitMonitorLayout && styles.centeredHeroText,
                 ]}
               >
@@ -449,6 +474,7 @@ function LoginScreen() {
                 style={[
                   styles.heroSubtitle,
                   isCompact && styles.heroSubtitleCompact,
+                  isShortLandscape && styles.heroSubtitleShortLandscape,
                   usePortraitMonitorLayout && styles.centeredHeroText,
                 ]}
               >
@@ -460,6 +486,7 @@ function LoginScreen() {
                 style={[
                   styles.heroChipRow,
                   usePortraitMonitorLayout && styles.heroChipRowCentered,
+                  isShortLandscape && styles.heroChipRowShortLandscape,
                 ]}
               >
                 <InfoChip label="Permit tracking" />
@@ -473,7 +500,9 @@ function LoginScreen() {
                 styles.card,
                 isCompact && styles.cardCompact,
                 !useSplitLayout && styles.cardStacked,
+                useWideStackedLayout && styles.cardWideStacked,
                 usePortraitMonitorLayout && styles.cardPortraitMonitor,
+                isShortLandscape && styles.cardShortLandscape,
                 { backgroundColor: colors.surface },
               ]}
             >
@@ -588,6 +617,9 @@ const styles = StyleSheet.create({
   scrollContentKeyboardOpen: {
     justifyContent: "flex-start",
   },
+  scrollContentCentered: {
+    justifyContent: "center",
+  },
   glowTopLeft: {
     position: "absolute",
     top: -90,
@@ -616,6 +648,12 @@ const styles = StyleSheet.create({
   pagePortraitMonitor: {
     maxWidth: 860,
   },
+  pageWideStacked: {
+    maxWidth: 780,
+  },
+  pageShortLandscape: {
+    maxWidth: 980,
+  },
   heroColumn: {
     width: "100%",
     minWidth: 0,
@@ -630,9 +668,15 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     maxWidth: 760,
   },
+  heroColumnWideStacked: {
+    maxWidth: 760,
+  },
   heroColumnPortraitMonitor: {
     maxWidth: 760,
     alignItems: "center",
+  },
+  heroColumnShortLandscape: {
+    marginBottom: 10,
   },
   brandRow: {
     flexDirection: "row",
@@ -653,6 +697,10 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     marginRight: 12,
+  },
+  logoShortLandscape: {
+    width: 72,
+    height: 72,
   },
   brandTextWrap: {
     flex: 1,
@@ -684,6 +732,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 30,
   },
+  logoTextShortLandscape: {
+    fontSize: 25,
+    lineHeight: 30,
+  },
   heroPill: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -697,6 +749,10 @@ const styles = StyleSheet.create({
   },
   heroPillCentered: {
     alignSelf: "center",
+  },
+  heroPillShortLandscape: {
+    marginTop: 16,
+    marginBottom: 14,
   },
   heroPillText: {
     marginLeft: 8,
@@ -715,6 +771,10 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
   },
+  heroTitleShortLandscape: {
+    fontSize: 32,
+    lineHeight: 38,
+  },
   heroSubtitle: {
     marginTop: 14,
     color: "rgba(255,255,255,0.82)",
@@ -726,6 +786,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  heroSubtitleShortLandscape: {
+    marginTop: 12,
+    fontSize: 15,
+    lineHeight: 22,
+  },
   heroChipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -734,6 +799,9 @@ const styles = StyleSheet.create({
   },
   heroChipRowCentered: {
     justifyContent: "center",
+  },
+  heroChipRowShortLandscape: {
+    marginTop: 18,
   },
   infoChip: {
     borderRadius: 999,
@@ -779,7 +847,13 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
   },
+  cardWideStacked: {
+    maxWidth: 560,
+  },
   cardPortraitMonitor: {
+    maxWidth: 540,
+  },
+  cardShortLandscape: {
     maxWidth: 540,
   },
   cardEyebrow: {

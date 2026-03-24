@@ -24,6 +24,7 @@ export default function VerifyOtp() {
   const params = useLocalSearchParams();
   const email = getParamValue(params.email);
   const purpose = getParamValue(params.purpose) || "reset";
+  const isRegisterFlow = purpose === "register";
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -111,14 +112,24 @@ export default function VerifyOtp() {
 
   return (
     <AuthRecoveryShell
-      eyebrow="OTP verification"
-      title="Confirm your recovery code"
-      subtitle="Enter the one-time password sent to your email."
+      eyebrow={isRegisterFlow ? "Email verification" : "OTP verification"}
+      title={isRegisterFlow ? "Confirm your email code" : "Confirm your recovery code"}
+      subtitle={
+        isRegisterFlow
+          ? "Enter the one-time password sent after account registration."
+          : "Enter the one-time password sent to your email."
+      }
       step={2}
     >
       <Text style={styles.sectionEyebrow}>Verification</Text>
-      <Text style={styles.sectionTitle}>Enter the OTP</Text>
-      <Text style={styles.sectionCopy}>Use the 6-digit code from your email.</Text>
+      <Text style={styles.sectionTitle}>
+        {isRegisterFlow ? "Enter your email code" : "Enter the OTP"}
+      </Text>
+      <Text style={styles.sectionCopy}>
+        {isRegisterFlow
+          ? "Use the 6-digit code from your verification email."
+          : "Use the 6-digit code from your email."}
+      </Text>
 
       {notice ? (
         <FeedbackBanner
@@ -138,8 +149,13 @@ export default function VerifyOtp() {
           />
         </View>
         <View style={styles.emailTextWrap}>
-          <Text style={styles.emailLabel}>Sent to</Text>
+          <Text style={styles.emailLabel}>
+            {isRegisterFlow ? "Verification sent to" : "Sent to"}
+          </Text>
           <Text style={styles.emailValue}>{email || "Email not available"}</Text>
+          <Text style={styles.emailHint}>
+            One code only. It stays valid for 10 minutes.
+          </Text>
         </View>
       </View>
 
@@ -168,12 +184,17 @@ export default function VerifyOtp() {
           size={18}
           color={agriPalette.wheat}
         />
-        <Text style={styles.tipText}>No code yet? Go back and request another one.</Text>
+        <Text style={styles.tipText}>
+          Check inbox and spam first.{" "}
+          {isRegisterFlow
+            ? "If the email address is wrong, go back to sign up and correct it."
+            : "If the code expired, go back and request a new one."}
+        </Text>
       </View>
 
       <View style={styles.actionStack}>
         <AgriButton
-          title="Verify OTP"
+          title={isRegisterFlow ? "Verify email" : "Verify OTP"}
           icon="check-decagram-outline"
           loading={loading}
           disabled={loading}
@@ -185,7 +206,7 @@ export default function VerifyOtp() {
           variant="secondary"
           trailingIcon={false}
           disabled={loading}
-          onPress={() => router.replace("/sendOtp")}
+          onPress={() => router.replace(isRegisterFlow ? "/register" : "/sendOtp")}
         />
       </View>
     </AuthRecoveryShell>
@@ -250,6 +271,12 @@ const styles = StyleSheet.create({
     color: agriPalette.fieldDeep,
     fontSize: 15,
     fontWeight: "800",
+  },
+  emailHint: {
+    marginTop: 6,
+    color: agriPalette.inkSoft,
+    fontSize: 13,
+    lineHeight: 18,
   },
   input: {
     marginTop: 18,

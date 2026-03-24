@@ -24,7 +24,6 @@ import { apiRoutes, apiUrl } from "../../lib/api";
 import { agriPaperTheme, agriPalette } from "../../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.auth.register);
-const API_SEND_OTP = apiUrl(apiRoutes.auth.sendOtp);
 const REGISTRATION_FIELD_LABELS = {
   firstname: "First name",
   lastname: "Last name",
@@ -159,11 +158,13 @@ function RegisterScreen() {
   };
 
   const handleRegister = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
     const validation = validateRegistrationFields({
       firstname,
       lastname,
       address,
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       phone,
       username,
       password,
@@ -196,7 +197,7 @@ function RegisterScreen() {
     setNotice({
       tone: "info",
       title: "Creating your account",
-      message: "Saving your owner profile and preparing your email verification step.",
+      message: "Saving your owner profile and sending one verification code to your email.",
     });
 
     try {
@@ -207,7 +208,7 @@ function RegisterScreen() {
           firstname: firstname.trim(),
           lastname: lastname.trim(),
           address: address.trim(),
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
           phone,
           username: username.trim(),
           password,
@@ -226,37 +227,16 @@ function RegisterScreen() {
         return;
       }
 
-      const otpRes = await fetch(API_SEND_OTP, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          purpose: "register",
-        }),
-      });
-
-      const otpText = await otpRes.text();
-      const otpResult = otpText ? JSON.parse(otpText) : {};
-
-      if (!otpResult.success) {
-        setNotice({
-          tone: "error",
-          title: "OTP not sent",
-          message: otpResult.message || "Failed to send OTP.",
-        });
-        return;
-      }
-
       setNotice({
         tone: "success",
         title: "Account created",
-        message: "Your OTP is on the way. Opening the email verification step now.",
+        message: `A single 6-digit verification code was sent to ${normalizedEmail}. Check inbox or spam, then enter it in the next step.`,
       });
       setFieldErrors(createEmptyFieldErrors());
       await pause(700);
       router.replace({
         pathname: "/verifyOtp",
-        params: { email: email.trim().toLowerCase(), purpose: "register" },
+        params: { email: normalizedEmail, purpose: "register" },
       });
     } catch (error) {
       console.error(error);
@@ -369,8 +349,8 @@ function RegisterScreen() {
                 Create your account
               </Text>
               <Text style={styles.cardSubtitle}>
-                Enter your personal and contact details, then we will send an OTP
-                to verify your email before you sign in.
+                Enter your personal and contact details. We will send one
+                verification code to your email before you sign in.
               </Text>
 
               {notice ? (
@@ -393,8 +373,9 @@ function RegisterScreen() {
                 <View style={styles.helperTextWrap}>
                   <Text style={styles.helperTitle}>Verification note</Text>
                   <Text style={styles.helperCopy}>
-                    Your email must be valid because registration ends with an OTP
-                    verification step.
+                    Use an active email. One 6-digit code will be sent after sign
+                    up, it stays valid for 10 minutes, and it may land in spam or
+                    junk first.
                   </Text>
                 </View>
               </View>
@@ -523,8 +504,8 @@ function RegisterScreen() {
               <View style={styles.requirementsCard}>
                 <Text style={styles.requirementsTitle}>Before you continue</Text>
                 <Text style={styles.requirementsCopy}>
-                  Make sure your name and email are correct. Those details are
-                  used for verification and owner-linked schedule records.
+                  Make sure your name and email are correct. The verification
+                  code and future owner-linked updates will use those details.
                 </Text>
               </View>
 
