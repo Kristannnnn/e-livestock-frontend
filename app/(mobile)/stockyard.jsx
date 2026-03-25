@@ -25,6 +25,7 @@ import { apiRoutes, apiUrl, parseJsonResponse } from "../../lib/api";
 import { agriPalette } from "../../constants/agriTheme";
 
 const API_URL = apiUrl(apiRoutes.owner.forms);
+const OWNER_SCHEDULES_URL = apiUrl(apiRoutes.owner.schedules);
 const RENEWAL_REQUEST_URL = apiUrl(apiRoutes.renewals.request);
 
 const filterOptions = ["All", "Active QR", "Expired QR"];
@@ -91,6 +92,59 @@ async function requestForms(session = null) {
     response,
     `Stockyard API request failed (HTTP ${response.status}).`
   );
+}
+
+async function requestOwnerSchedules(session = null) {
+  const accountId =
+    session?.accountId ?? (await AsyncStorage.getItem("account_id"));
+  const firstNameValue =
+    session?.firstName ?? (await AsyncStorage.getItem("first_name"));
+  const lastNameValue =
+    session?.lastName ?? (await AsyncStorage.getItem("last_name"));
+
+  const payload = {
+    first_name: firstNameValue || "",
+    last_name: lastNameValue || "",
+  };
+
+  if (accountId) {
+    payload.account_id = Number.parseInt(accountId, 10);
+  }
+
+  const response = await fetch(OWNER_SCHEDULES_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return parseJsonResponse(
+    response,
+    `Owner schedule API request failed (HTTP ${response.status}).`
+  );
+}
+
+function attachLinkedScheduleState(forms, schedules) {
+  const linkedSchedules = new Map();
+
+  (Array.isArray(schedules) ? schedules : []).forEach((schedule) => {
+    const formId = Number.parseInt(schedule?.form_id, 10);
+    const normalizedStatus = String(schedule?.status || "").trim().toLowerCase();
+
+    if (formId > 0 && normalizedStatus !== "cancelled") {
+      linkedSchedules.set(formId, schedule);
+    }
+  });
+
+  return (Array.isArray(forms) ? forms : []).map((form) => {
+    const linkedSchedule = linkedSchedules.get(Number.parseInt(form?.form_id, 10));
+
+    return {
+      ...form,
+      has_linked_schedule: Boolean(linkedSchedule),
+      linked_schedule_id: Number.parseInt(linkedSchedule?.schedule_id, 10) || 0,
+      linked_schedule_status: linkedSchedule?.status || "",
+    };
+  });
 }
 
 function isQRExpired(expirationDate, isExpiredFlag) {
@@ -268,18 +322,40 @@ export default function Stockyard() {
           setAccountId(accountId);
         }
 
-        const data = await requestForms({
+        const session = {
           accountId,
           firstName: storedFirstName,
           lastName: lastNameValue,
-        });
+        };
+        const [formsResult, schedulesResult] = await Promise.allSettled([
+          requestForms(session),
+          requestOwnerSchedules(session),
+        ]);
+
+        if (formsResult.status !== "fulfilled") {
+          throw formsResult.reason;
+        }
+
+        const data = formsResult.value;
+        const scheduleData =
+          schedulesResult.status === "fulfilled" &&
+          schedulesResult.value?.status === "success"
+            ? schedulesResult.value.schedules
+            : [];
+
+        if (schedulesResult.status === "rejected") {
+          console.error("Failed to load owner schedules:", schedulesResult.reason);
+        }
 
         if (data.status === "success") {
-          const nextForms = scopeFormsToOwner(data.forms, {
-            accountId,
-            firstName: storedFirstName,
-            lastName: lastNameValue,
-          });
+          const nextForms = attachLinkedScheduleState(
+            scopeFormsToOwner(data.forms, {
+              accountId,
+              firstName: storedFirstName,
+              lastName: lastNameValue,
+            }),
+            scheduleData
+          );
           setForms(nextForms);
           setLoadError("");
         } else {
@@ -357,26 +433,38 @@ export default function Stockyard() {
       }
       setLoadError("");
 
-      const data = await requestForms(session);
-      const sessionFirstName =
-        session?.firstName ?? (await AsyncStorage.getItem("first_name"));
-      const sessionLastName =
-        session?.lastName ?? (await AsyncStorage.getItem("last_name"));
-      const sessionAccountId =
-        session?.accountId ?? (await AsyncStorage.getItem("account_id"));
+      const [formsResult, schedulesResult, sessionFirstName, sessionLastName, sessionAccountId] =
+        await Promise.all([
+          requestForms(session),
+          requestOwnerSchedules(session).catch((error) => {
+            console.error("Failed to refresh owner schedules:", error);
+            return null;
+          }),
+          session?.firstName ?? AsyncStorage.getItem("first_name"),
+          session?.lastName ?? AsyncStorage.getItem("last_name"),
+          session?.accountId ?? AsyncStorage.getItem("account_id"),
+        ]);
 
-      if (data.status === "success") {
-        const nextForms = scopeFormsToOwner(data.forms, {
-          accountId: sessionAccountId,
-          firstName: sessionFirstName,
-          lastName: sessionLastName,
-        });
+      const scheduleData =
+        schedulesResult?.status === "success" ? schedulesResult.schedules : [];
+
+      if (formsResult.status === "success") {
+        const nextForms = attachLinkedScheduleState(
+          scopeFormsToOwner(formsResult.forms, {
+            accountId: sessionAccountId,
+            firstName: sessionFirstName,
+            lastName: sessionLastName,
+          }),
+          scheduleData
+        );
         setForms(nextForms);
         setLoadError("");
       } else {
         setForms([]);
         setLoadError(
-          data.message && data.message !== "No forms found" ? data.message : ""
+          formsResult.message && formsResult.message !== "No forms found"
+            ? formsResult.message
+            : ""
         );
       }
     } catch (err) {
@@ -412,6 +500,18 @@ export default function Stockyard() {
     ]);
 
     router.push("/appointment");
+  };
+
+  const goToCheckSchedule = (form) => {
+    router.push({
+      pathname: "/checkSchedule",
+      params: {
+        form_id: String(form.form_id),
+        ...(form.linked_schedule_id
+          ? { schedule_id: String(form.linked_schedule_id) }
+          : {}),
+      },
+    });
   };
 
   const openModal = (form) => {
@@ -674,6 +774,23 @@ export default function Stockyard() {
                   : "sky";
                 const renewalButtonDisabled =
                   expired && (renewalPending || renewalCompleted);
+                const hasLinkedSchedule =
+                  !expired && Boolean(item.has_linked_schedule);
+                const actionButtonTitle = expired
+                  ? renewalButtonTitle
+                  : hasLinkedSchedule
+                    ? "Check schedule"
+                    : "Schedule inspection";
+                const actionButtonIcon = expired
+                  ? renewalButtonIcon
+                  : hasLinkedSchedule
+                    ? "calendar-month-outline"
+                    : "calendar-plus-outline";
+                const actionButtonVariant = expired
+                  ? renewalButtonVariant
+                  : hasLinkedSchedule
+                    ? "primary"
+                    : "sky";
                 const permitSubtitle = item.owner_name || "Owner not recorded";
                 const isExpanded = expandedFormId === item.form_id;
                 const isHighlighted = Number(item.form_id) === highlightedFormId;
@@ -1048,10 +1165,10 @@ export default function Stockyard() {
                             style={useWideActionRow ? styles.actionCell : null}
                           >
                             <AgriButton
-                              title={renewalButtonTitle}
+                              title={actionButtonTitle}
                               subtitle={renewalButtonSubtitle}
-                              icon={renewalButtonIcon}
-                              variant={renewalButtonVariant}
+                              icon={actionButtonIcon}
+                              variant={actionButtonVariant}
                               compact
                               trailingIcon={expired ? false : "arrow-right"}
                               disabled={
@@ -1062,7 +1179,9 @@ export default function Stockyard() {
                               onPress={() =>
                                 expired
                                   ? openRenewalRequest(item)
-                                  : goToAppointment(item)
+                                  : hasLinkedSchedule
+                                    ? goToCheckSchedule(item)
+                                    : goToAppointment(item)
                               }
                             />
                           </View>
