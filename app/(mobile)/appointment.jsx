@@ -507,19 +507,19 @@ export default function Appointment() {
             <Text style={styles.cardCopy}>Check the linked record before booking.</Text>
 
             <View style={[styles.infoGrid, isWide && styles.infoGridWide]}>
-              <View style={styles.infoCard}>
+              <View style={[styles.infoCard, isWide && styles.infoCardWide]}>
                 <Text style={styles.infoLabel}>Owner</Text>
                 <Text style={styles.infoValue}>{ownerName || "Not loaded yet"}</Text>
               </View>
-              <View style={styles.infoCard}>
+              <View style={[styles.infoCard, isWide && styles.infoCardWide]}>
                 <Text style={styles.infoLabel}>Eartag</Text>
                 <Text style={styles.infoValue}>{eartagNumber || "No eartag recorded"}</Text>
               </View>
-              <View style={styles.infoCard}>
+              <View style={[styles.infoCard, isWide && styles.infoCardWide]}>
                 <Text style={styles.infoLabel}>Location</Text>
                 <Text style={styles.infoValue}>{location || "No address recorded"}</Text>
               </View>
-              <View style={styles.infoCard}>
+              <View style={[styles.infoCard, isWide && styles.infoCardWide]}>
                 <Text style={styles.infoLabel}>Valid until</Text>
                 <Text style={styles.infoValue}>
                   {parsedExpirationDate
@@ -621,6 +621,7 @@ export default function Appointment() {
                   onPress={() => openConfirmation(slot)}
                   style={({ pressed }) => [
                     styles.slotCard,
+                    isWide && styles.slotCardWide,
                     {
                       backgroundColor: palette.background,
                       borderColor: palette.border,
@@ -1003,15 +1004,18 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   infoCard: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    minWidth: 150,
+    minWidth: 0,
     borderRadius: 22,
     backgroundColor: agriPalette.cream,
     borderWidth: 1,
     borderColor: agriPalette.border,
     paddingHorizontal: 14,
     paddingVertical: 14,
+  },
+  infoCardWide: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minWidth: 150,
   },
   infoLabel: {
     color: agriPalette.inkSoft,
@@ -1105,6 +1109,7 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 14,
@@ -1139,13 +1144,16 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   slotCard: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    minWidth: 250,
+    minWidth: 0,
     borderRadius: 26,
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  slotCardWide: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minWidth: 250,
   },
   slotCardPressed: {
     opacity: 0.95,
