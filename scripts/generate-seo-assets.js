@@ -2,6 +2,8 @@ const fs = require("fs");
 const path = require("path");
 
 const siteConfig = require("../lib/seo/siteConfig.json");
+const siteConfigPath = require.resolve("../lib/seo/siteConfig.json");
+const projectRoot = path.resolve(path.dirname(siteConfigPath), "..", "..");
 
 function normalizeSiteUrl(value) {
   const trimmed = String(value || "").trim();
@@ -43,7 +45,7 @@ function escapeXml(value) {
 const siteUrl = normalizeSiteUrl(
   process.env.EXPO_PUBLIC_SITE_URL || siteConfig.defaultSiteUrl
 );
-const publicDir = path.join(__dirname, "..", "public");
+const publicDir = path.join(projectRoot, "public");
 const generatedDate = new Date().toISOString().slice(0, 10);
 
 const sitemapXml = [
