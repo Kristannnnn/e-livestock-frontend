@@ -117,7 +117,9 @@ function LoginScreen() {
   const [secureText, setSecureText] = useState(true);
   const [notice, setNotice] = useState(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [checkingStoredSession, setCheckingStoredSession] = useState(true);
+  const [checkingStoredSession, setCheckingStoredSession] = useState(
+    Platform.OS !== "web"
+  );
   const [sessionDestination, setSessionDestination] = useState("");
   const keyboardVisible = keyboardHeight > 0;
   const shouldCenterContent =
@@ -131,6 +133,10 @@ function LoginScreen() {
   }, [params.notice]);
 
   useEffect(() => {
+    if (Platform.OS === "web") {
+      setCheckingStoredSession(false);
+    }
+
     let active = true;
 
     const restoreStoredSession = async () => {

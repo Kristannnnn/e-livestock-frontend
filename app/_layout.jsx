@@ -1,6 +1,6 @@
 import { Slot, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import {
   addNotificationResponseListenerAsync,
   configureDeviceNotificationsAsync,
@@ -20,7 +20,8 @@ function pause(ms) {
 
 export default function RootLayout() {
   const router = useRouter();
-  const [appReady, setAppReady] = useState(false);
+  const isWeb = Platform.OS === "web";
+  const [appReady, setAppReady] = useState(isWeb);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -62,8 +63,10 @@ export default function RootLayout() {
       } catch (error) {
         console.error("Startup bootstrap error:", error);
       } finally {
-        const elapsed = Date.now() - startedAt;
-        await pause(Math.max(0, MIN_STARTUP_LOADING_MS - elapsed));
+        if (!isWeb) {
+          const elapsed = Date.now() - startedAt;
+          await pause(Math.max(0, MIN_STARTUP_LOADING_MS - elapsed));
+        }
 
         if (mounted) {
           setAppReady(true);
@@ -77,7 +80,7 @@ export default function RootLayout() {
       mounted = false;
       responseSubscription?.remove?.();
     };
-  }, [router]);
+  }, [isWeb, router]);
 
   return (
     <View style={styles.root}>
