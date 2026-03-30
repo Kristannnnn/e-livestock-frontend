@@ -24,6 +24,7 @@ export default function ResetPassword() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const email = getParamValue(params.email);
+  const resetToken = getParamValue(params.resetToken);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,22 +36,22 @@ export default function ResetPassword() {
     "Set a new password for your e-Livestock account after verifying your recovery code.";
 
   useEffect(() => {
-    if (!email) {
+    if (!email || !resetToken) {
       setNotice({
         tone: "error",
-        title: "Missing email",
-        message: "Returning to login.",
+        title: "Recovery session missing",
+        message: "Request a new recovery code to continue.",
       });
 
       const timeoutId = setTimeout(() => {
-        router.replace("/");
-      }, 900);
+        router.replace("/sendOtp");
+      }, 1200);
 
       return () => clearTimeout(timeoutId);
     }
 
     return undefined;
-  }, [email, router]);
+  }, [email, resetToken, router]);
 
   const resetPassword = async () => {
     if (!password || !confirm) {
@@ -62,11 +63,11 @@ export default function ResetPassword() {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       setNotice({
         tone: "warning",
         title: "Password too short",
-        message: "Use at least 6 characters for your new password.",
+        message: "Use at least 8 characters for your new password.",
       });
       return;
     }
@@ -91,7 +92,7 @@ export default function ResetPassword() {
       const response = await fetch(API_RESET_PASSWORD, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, reset_token: resetToken }),
       });
 
       const result = await response.json();
@@ -139,7 +140,7 @@ export default function ResetPassword() {
       >
         <Text style={styles.sectionEyebrow}>Password update</Text>
         <Text style={styles.sectionTitle}>Set a new password</Text>
-        <Text style={styles.sectionCopy}>Use at least 6 characters and confirm it below.</Text>
+        <Text style={styles.sectionCopy}>Use at least 8 characters and confirm it below.</Text>
 
         {notice ? (
           <FeedbackBanner
@@ -214,7 +215,7 @@ export default function ResetPassword() {
 
         <View style={styles.requirementsCard}>
           <Text style={styles.requirementsTitle}>Checklist</Text>
-          <RequirementRow label="At least 6 characters" />
+          <RequirementRow label="At least 8 characters" />
           <RequirementRow label="Keep it private" />
           <RequirementRow label="Both fields match" />
         </View>

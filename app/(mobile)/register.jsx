@@ -115,6 +115,9 @@ function validateRegistrationFields(values) {
   if (!values.password.trim()) {
     errors.password = "Create a password.";
     missingFields.push(REGISTRATION_FIELD_LABELS.password);
+  } else if (values.password.length < 8) {
+    errors.password = "Use at least 8 characters.";
+    invalidFields.push(REGISTRATION_FIELD_LABELS.password);
   }
 
   return { errors, missingFields, invalidFields };
@@ -399,8 +402,8 @@ function RegisterScreen() {
                   <Text style={styles.helperTitle}>Verification note</Text>
                   <Text style={styles.helperCopy}>
                     Use an active email. One 6-digit code will be sent after sign
-                    up, it stays valid for 10 minutes, and it may land in spam or
-                    junk first.
+                    up, it stays valid for 10 minutes, it may land in spam or
+                    junk first, and your password must be at least 8 characters.
                   </Text>
                 </View>
               </View>

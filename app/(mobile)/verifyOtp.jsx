@@ -103,7 +103,19 @@ export default function VerifyOtp() {
       if (purpose === "register") {
         router.replace({ pathname: "/", params: { notice: "email_verified" } });
       } else if (purpose === "reset") {
-        router.replace({ pathname: "/resetPassword", params: { email } });
+        if (!result.reset_token) {
+          setNotice({
+            tone: "error",
+            title: "Reset session unavailable",
+            message: "Please request a new recovery code and try again.",
+          });
+          return;
+        }
+
+        router.replace({
+          pathname: "/resetPassword",
+          params: { email, resetToken: result.reset_token },
+        });
       }
     } catch (error) {
       console.error(error);
