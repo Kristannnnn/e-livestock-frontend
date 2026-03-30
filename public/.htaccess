@@ -1,0 +1,18 @@
+RewriteEngine On
+
+# Leave the admin app and backend API alone so their own rewrite rules can run.
+RewriteRule ^(admin|e-livestock-backend)(/|$) - [L]
+
+# Serve real files and directories directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Map extensionless Expo export routes like /ownerDashboard to ownerDashboard.html.
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.+?)/?$ $1.html [L]
+
+# Boot the public app shell for unmatched in-app routes so Expo Router can
+# render the public not-found screen.
+RewriteRule ^$ index.html [L]
+RewriteRule ^.+$ index.html [L]
