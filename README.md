@@ -146,7 +146,7 @@ The app supports Expo web export. SEO metadata and web assets are generated thro
 2. Install dependencies:
 
    ```bash
-   npm install
+   npm install or npm ci -> for clean install
    ```
 
 3. Create a local environment file:
